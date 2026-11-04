@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
-type Attendee = { id: string; name: string; email: string };
+type Attendee = { id: string; name: string; email: string | null };
 
 function fmtTime(iso: string) {
   const d = new Date(iso);

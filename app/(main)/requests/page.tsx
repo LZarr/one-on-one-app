@@ -49,8 +49,10 @@ function serialize(r: {
   status: string;
   fromUserId: string;
   toUserId: string;
-  from: { id: string; name: string; email: string };
-  to: { id: string; name: string; email: string };
+  message: string | null;
+  assignedByAdmin: boolean;
+  from: { id: string; name: string; email: string | null };
+  to: { id: string; name: string; email: string | null };
 }) {
   return {
     id: r.id,
@@ -58,6 +60,8 @@ function serialize(r: {
     status: r.status,
     fromUserId: r.fromUserId,
     toUserId: r.toUserId,
+    message: r.message,
+    assignedByAdmin: r.assignedByAdmin,
     from: r.from,
     to: r.to,
   };

@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { formatSlotDay, formatSlotTime } from "@/lib/format";
 
-type Attendee = { id: string; name: string; email: string };
+type Attendee = { id: string; name: string; email: string | null; school: string | null };
 
 const AVATAR_COLORS = [
   "bg-accent-500",
@@ -43,7 +43,7 @@ export default function AttendeeList({
   const ql = q.toLowerCase();
   const filtered = attendees.filter(
     (a) =>
-      a.name.toLowerCase().includes(ql) || a.email.toLowerCase().includes(ql),
+      a.name.toLowerCase().includes(ql) || (a.email || "").toLowerCase().includes(ql),
   );
   return (
     <>
@@ -91,7 +91,7 @@ export default function AttendeeList({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-sm text-stone-900 group-hover:text-accent-600">{a.name}</div>
-                <div className="text-xs text-stone-400 truncate">{a.email}</div>
+                <div className="text-xs text-stone-400 truncate">{a.email || a.school}</div>
               </div>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-stone-300 group-hover:text-accent-500 shrink-0">
                 <path fillRule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />

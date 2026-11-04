@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
-import { getRetreat, generateSlots, groupSlotsByDay, nowInRetreatTz } from "@/lib/config";
+import { getRetreat, generateSlots, groupSlotsByDay, nowInRetreatTz, getDayHoursMap } from "@/lib/config";
 import {
   getMyAvailability,
   ensureDefaultAvailability,
@@ -14,8 +14,9 @@ export default async function SchedulePage() {
   const s = await getSession();
   if (!s.userId || !s.retreatId) redirect("/login");
   const retreat = (await getRetreat(s.retreatId))!;
+  const dayHours = await getDayHoursMap(s.retreatId);
   const blockedSlots = new Set(retreat.blockedSlots ?? []);
-  const slots = generateSlots(retreat);
+  const slots = generateSlots(retreat, dayHours);
   const visibleSlots = slots.filter((slot) => !blockedSlots.has(slot.toISOString()));
   const groups = groupSlotsByDay(slots);
   await ensureDefaultAvailability(s.userId, s.retreatId, visibleSlots);
@@ -43,6 +44,7 @@ export default async function SchedulePage() {
       otherPersonName: string;
       otherPersonId: string;
       type: "confirmed" | "incoming" | "outgoing";
+      assignedByAdmin: boolean;
     }
   > = {};
 
@@ -60,6 +62,7 @@ export default async function SchedulePage() {
       otherPersonName: other.name || "someone",
       otherPersonId: other.id,
       type: isConfirmed ? "confirmed" : isIncoming ? "incoming" : "outgoing",
+      assignedByAdmin: r.assignedByAdmin,
     };
   }
 

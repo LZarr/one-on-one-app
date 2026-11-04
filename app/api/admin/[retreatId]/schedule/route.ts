@@ -65,6 +65,7 @@ export async function POST(
           toUserId,
           slotStart,
           status: "accepted",
+          assignedByAdmin: true,
         },
       });
       // Cancel any pending requests at this slot for either party
@@ -95,8 +96,10 @@ export async function POST(
     prisma.user.findUnique({ where: { id: fromUserId }, select: { name: true, email: true } }),
     prisma.user.findUnique({ where: { id: toUserId }, select: { name: true, email: true } }),
   ]);
-  if (admin && fromUser && toUser) {
+  if (admin && fromUser?.email && toUser) {
     notifyAdminScheduled(fromUser.email, admin.name || "Admin", toUser.name || "someone", slotStart);
+  }
+  if (admin && toUser?.email && fromUser) {
     notifyAdminScheduled(toUser.email, admin.name || "Admin", fromUser.name || "someone", slotStart);
   }
 

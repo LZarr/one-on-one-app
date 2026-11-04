@@ -9,6 +9,7 @@ import { lockSlot } from "@/lib/booking";
 const schema = z.object({
   toUserId: z.string(),
   slotStart: z.string(),
+  message: z.string().max(1000).optional(),
 });
 
 export async function POST(req: Request) {
@@ -94,6 +95,7 @@ export async function POST(req: Request) {
           toUserId: parsed.data.toUserId,
           slotStart,
           status: "pending",
+          message: parsed.data.message,
         },
       });
     });
@@ -107,8 +109,8 @@ export async function POST(req: Request) {
     prisma.user.findUnique({ where: { id: s.userId }, select: { name: true } }),
   ]);
 
-  if (toUser && fromUser) {
-    notifyNewRequest(toUser.email, fromUser.name || "Someone", slotStart, created.id);
+  if (toUser?.email && fromUser) {
+    notifyNewRequest(toUser.email, fromUser.name || "Someone", slotStart, created.id, parsed.data.message);
   }
 
   return NextResponse.json({ ok: true, id: created.id });

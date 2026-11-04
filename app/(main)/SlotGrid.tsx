@@ -1,5 +1,5 @@
 "use client";
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { formatSlotTime, formatSlotDay } from "@/lib/format";
 
 type SlotGridProps = {
@@ -99,7 +99,6 @@ export default function SlotGrid({
       const slots = filterSlot ? groups[d].filter(filterSlot) : groups[d];
       return slots.some((iso) => new Date(iso).getTime() >= nowMs);
     }) ?? days[0];
-  const [activeDay, setActiveDay] = useState(firstNonPastDay);
 
   const columnProps = (day: string) => ({
     day,
@@ -113,24 +112,6 @@ export default function SlotGrid({
 
   return (
     <>
-      {/* Mobile: Day tabs */}
-      <div className="flex gap-1.5 mb-5 lg:hidden overflow-x-auto">
-        {days.map((day) => (
-          <button
-            key={day}
-            onClick={() => setActiveDay(day)}
-            className={[
-              "flex-1 py-2.5 rounded-md text-sm font-semibold border min-w-0",
-              activeDay === day
-                ? "bg-accent-500 text-white border-accent-500"
-                : "bg-white text-stone-500 border-stone-200 hover:bg-stone-50 hover:text-stone-700",
-            ].join(" ")}
-          >
-            {formatSlotDay(new Date(day))}
-          </button>
-        ))}
-      </div>
-
       {/* Desktop: columns */}
       <div
         className="hidden lg:grid gap-5"
@@ -148,11 +129,23 @@ export default function SlotGrid({
         ))}
       </div>
 
-      {/* Mobile: single day */}
-      <div className="lg:hidden">
-        <div className="space-y-1.5">
-          <DayColumn {...columnProps(activeDay)} />
-        </div>
+      {/* Mobile: stacked days, today open by default, others collapsed */}
+      <div className="lg:hidden space-y-2.5">
+        {days.map((day) => (
+          <details key={day} open={day === firstNonPastDay} className="group">
+            <summary className="cursor-pointer select-none list-none flex items-center gap-2 py-2">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 text-stone-400 transition-transform group-open:rotate-90 shrink-0">
+                <path fillRule="evenodd" d="M6.22 4.22a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06l-3.25 3.25a.75.75 0 0 1-1.06-1.06L8.94 8 6.22 5.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+              </svg>
+              <h3 className="text-xs font-bold text-stone-500 uppercase tracking-wider">
+                {formatSlotDay(new Date(day))}
+              </h3>
+            </summary>
+            <div className="space-y-1.5 pl-5 pb-1">
+              <DayColumn {...columnProps(day)} />
+            </div>
+          </details>
+        ))}
       </div>
     </>
   );

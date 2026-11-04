@@ -87,7 +87,7 @@ export async function respondToRequest(
       prisma.user.findUnique({ where: { id: mr.fromUserId }, select: { email: true, name: true } }),
       prisma.user.findUnique({ where: { id: mr.toUserId }, select: { name: true } }),
     ]);
-    if (fromUser && toUser) {
+    if (fromUser?.email && toUser) {
       if (action === "accept") {
         notifyRequestAccepted(fromUser.email, toUser.name || "Someone", mr.slotStart);
       } else {
@@ -109,7 +109,7 @@ export async function respondToRequest(
     prisma.user.findUnique({ where: { id: otherId }, select: { email: true } }),
     prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
   ]);
-  if (otherUser && canceller) {
+  if (otherUser?.email && canceller) {
     notifyMeetingCancelled(otherUser.email, canceller.name || "Someone", mr.slotStart);
   }
   return { ok: true, otherName: canceller?.name || "someone", slotStart: mr.slotStart };

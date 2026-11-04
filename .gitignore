@@ -9,3 +9,6 @@ build
 next-env.d.ts
 .env*
 npm-debug.log*
+dev-x64.log
+dev-x64.err.log
+dev-x64.pid

@@ -9,6 +9,7 @@ type SlotMeeting = {
   otherPersonName: string;
   otherPersonId: string;
   type: "confirmed" | "incoming" | "outgoing";
+  assignedByAdmin: boolean;
 };
 
 type Props = {
@@ -151,13 +152,22 @@ export default function CalendarView({
 
     if (state.kind === "confirmed") {
       const pastCls = state.isPast ? "opacity-50" : "";
+      const assigned = state.meeting.assignedByAdmin;
+      const colorCls = assigned ? "border-stone-200 bg-white" : "border-emerald-200 bg-emerald-50";
+      const dotCls = assigned ? "bg-stone-300" : "bg-emerald-500";
+      const timeCls = assigned ? "text-stone-600" : "text-emerald-700";
+      const nameCls = assigned ? "text-stone-700" : "text-emerald-900";
+      const borderCls = assigned ? "border-stone-200" : "border-emerald-200";
       return (
-        <div key={iso} className={`${base} border-emerald-200 bg-emerald-50 ${hlCls} ${pastCls}`}>
-          <span className="text-xs text-emerald-700 w-16 shrink-0 font-semibold">{time}</span>
-          <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-          <span className="text-sm font-medium text-emerald-900 truncate flex-1">{state.meeting.otherPersonName}</span>
+        <div key={iso} className={`${base} ${colorCls} ${hlCls} ${pastCls}`}>
+          <span className={`text-xs ${timeCls} w-16 shrink-0 font-semibold`}>{time}</span>
+          <div className={`w-2 h-2 rounded-full ${dotCls} shrink-0`} />
+          <span className={`text-sm font-medium ${nameCls} truncate flex-1`}>
+            {state.meeting.otherPersonName}
+            {assigned && <span className="font-normal text-stone-400"> (assigned)</span>}
+          </span>
           {!state.isPast && (
-            <div className="flex self-stretch shrink-0 w-[72px] border-l border-emerald-200">
+            <div className={`flex self-stretch shrink-0 w-[72px] border-l ${borderCls}`}>
               <button
                 onClick={() => {
                   if (confirmingCancel === state.meeting.requestId) {

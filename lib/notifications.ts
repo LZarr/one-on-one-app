@@ -25,16 +25,23 @@ function fmtSlot(d: Date) {
   return `${formatSlotDay(d)} at ${formatSlotTime(d)}`;
 }
 
-export function notifyNewRequest(toEmail: string, fromName: string, slotStart: Date, requestId: string) {
+function escapeHtml(s: string) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+export function notifyNewRequest(toEmail: string, fromName: string, slotStart: Date, requestId: string, message?: string) {
   const when = fmtSlot(slotStart);
   const acceptLink = `${appUrl()}/r/${requestId}/accept`;
   const declineLink = `${appUrl()}/r/${requestId}/decline`;
   const scheduleLink = `${appUrl()}/schedule`;
   const subject = `${fromName} wants to meet 1:1`;
-  const text = `${fromName} requested a 1:1 with you on ${when}.\n\nAccept: ${acceptLink}\nDecline: ${declineLink}\n\nOr open your schedule: ${scheduleLink}`;
+  const text = `${fromName} requested a 1:1 with you on ${when}.${message ? `\n\nMessage: ${message}` : ""}\n\nAccept: ${acceptLink}\nDecline: ${declineLink}\n\nOr open your schedule: ${scheduleLink}`;
   const btn = (href: string, color: string, label: string) =>
     `<a href="${href}" style="display:inline-block;padding:10px 18px;margin-right:8px;background:${color};color:#fff;text-decoration:none;border-radius:6px;font-weight:600;font-size:14px">${label}</a>`;
-  const html = `<p><strong>${fromName}</strong> requested a 1:1 with you on <strong>${when}</strong>.</p><p>${btn(acceptLink, "#16a34a", "Accept")}${btn(declineLink, "#dc2626", "Decline")}</p><p style="font-size:12px;color:#666">Or <a href="${scheduleLink}">open your schedule</a> to respond.</p>`;
+  const messageHtml = message
+    ? `<p style="background:#f5f5f4;border-radius:6px;padding:10px 14px;font-size:14px;color:#44403c;white-space:pre-wrap">&ldquo;${escapeHtml(message)}&rdquo;</p>`
+    : "";
+  const html = `<p><strong>${fromName}</strong> requested a 1:1 with you on <strong>${when}</strong>.</p>${messageHtml}<p>${btn(acceptLink, "#16a34a", "Accept")}${btn(declineLink, "#dc2626", "Decline")}</p><p style="font-size:12px;color:#666">Or <a href="${scheduleLink}">open your schedule</a> to respond.</p>`;
   send(toEmail, subject, text, html).catch(() => {});
 }
 

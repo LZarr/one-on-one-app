@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { getRetreat, generateSlots, groupSlotsByDay, nowInRetreatTz } from "@/lib/config";
+import { getRetreat, generateSlots, groupSlotsByDay, nowInRetreatTz, getDayHoursMap } from "@/lib/config";
 import { getMyAvailability } from "@/lib/availability";
 import OverlapGrid from "./OverlapGrid";
 
@@ -25,7 +25,8 @@ export default async function AttendeeProfile({
   if (!member) notFound();
 
   const retreat = (await getRetreat(s.retreatId))!;
-  const slots = generateSlots(retreat);
+  const dayHours = await getDayHoursMap(s.retreatId);
+  const slots = generateSlots(retreat, dayHours);
   const groups = groupSlotsByDay(slots);
 
   const [mine, theirs, myMeetings, theirMeetings, pending] = await Promise.all([
@@ -71,7 +72,65 @@ export default async function AttendeeProfile({
         </svg>
         All attendees
       </Link>
-      <h1 className="text-2xl font-bold text-stone-900">{user.name}</h1>
+      <h1 className="text-2xl font-bold text-stone-900">
+        {user.name}
+        {user.pronouns && <span className="text-base font-normal text-stone-400 ml-2">{user.pronouns}</span>}
+      </h1>
+      {user.school && <p className="text-sm text-stone-500 mt-0.5">{user.school}</p>}
+
+      {(user.bio || user.canHelpWith || user.canBeHelpedWith || user.keyCrux || user.personalLink) && (
+        <details className="group mt-4 mb-6 rounded-md border border-stone-200 bg-white shadow-sm overflow-hidden">
+          <summary className="cursor-pointer select-none list-none px-4 py-3 flex items-center gap-2 hover:bg-stone-50">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 text-stone-400 transition-transform group-open:rotate-90 shrink-0">
+              <path fillRule="evenodd" d="M6.22 4.22a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06l-3.25 3.25a.75.75 0 0 1-1.06-1.06L8.94 8 6.22 5.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+            </svg>
+            <h2 className="text-sm font-bold text-stone-700">View profile</h2>
+          </summary>
+          <div className="border-t border-stone-100 divide-y divide-stone-100">
+          {user.bio && (
+            <div className="p-4">
+              <div className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1">Bio</div>
+              <p className="text-sm text-stone-700 whitespace-pre-wrap">{user.bio}</p>
+            </div>
+          )}
+          {user.canHelpWith && (
+            <div className="p-4">
+              <div className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1">
+                {user.name} can help others with
+              </div>
+              <p className="text-sm text-stone-700 whitespace-pre-wrap">{user.canHelpWith}</p>
+            </div>
+          )}
+          {user.canBeHelpedWith && (
+            <div className="p-4">
+              <div className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1">
+                Others can help {user.name} with
+              </div>
+              <p className="text-sm text-stone-700 whitespace-pre-wrap">{user.canBeHelpedWith}</p>
+            </div>
+          )}
+          {user.keyCrux && (
+            <div className="p-4">
+              <div className="text-xs font-semibold text-stone-400 uppercase tracking-wide mb-1">Key uncertainty / crux</div>
+              <p className="text-sm text-stone-700 whitespace-pre-wrap">{user.keyCrux}</p>
+            </div>
+          )}
+          {user.personalLink && (
+            <div className="p-4">
+              <a
+                href={/^https?:\/\//i.test(user.personalLink) ? user.personalLink : `https://${user.personalLink}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-accent-600 font-medium hover:underline break-all"
+              >
+                {user.personalLink}
+              </a>
+            </div>
+          )}
+          </div>
+        </details>
+      )}
+
       <p className="text-sm text-stone-400 mt-0.5 mb-6">
         Tap a green slot to request a 1:1
       </p>

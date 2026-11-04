@@ -52,6 +52,7 @@ export default function OverlapGrid({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string | null>(preselectedSlot ?? null);
+  const [message, setMessage] = useState("");
   const [confirmingCancel, setConfirmingCancel] = useState<string | null>(null);
   const [betweenUsMap, setBetweenUsMap] = useState<Record<string, BetweenUsRequest>>(
     Object.fromEntries(betweenUs.map((p) => [p.slotStart, p])),
@@ -63,16 +64,17 @@ export default function OverlapGrid({
   const blockedSet = new Set(blockedSlots);
   const nowMs = new Date(now).getTime();
 
-  async function request(iso: string) {
+  async function request(iso: string, msg: string) {
     setConfirm(null);
     setBusy(iso);
     setError(null);
     const res = await fetch("/api/requests", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ toUserId, slotStart: iso }),
+      body: JSON.stringify({ toUserId, slotStart: iso, message: msg.trim() || undefined }),
     });
     setBusy(null);
+    setMessage("");
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
       setError(j.error || "Failed");
@@ -355,21 +357,34 @@ export default function OverlapGrid({
               </svg>
             </div>
             <h3 className="text-lg font-bold text-stone-900 mb-1">Request 1:1</h3>
-            <p className="text-sm text-stone-500 mb-5">
+            <p className="text-sm text-stone-500 mb-4">
               Meet with <span className="font-semibold text-stone-700">{toUserName}</span> on{" "}
               <span className="font-semibold text-stone-700">{formatSlotDay(new Date(confirm))}</span>{" "}
               at{" "}
               <span className="font-semibold text-stone-700">{formatSlotTime(new Date(confirm))}</span>?
             </p>
+            <label className="block text-xs font-semibold text-stone-600 mb-1.5">
+              Message <span className="font-normal text-stone-400">(optional)</span>
+            </label>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={2}
+              placeholder="Say what you'd like to chat about..."
+              className="w-full border border-stone-200 rounded-md px-3 py-2 text-sm bg-stone-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500 mb-5"
+            />
             <div className="flex gap-2.5 justify-end">
               <button
-                onClick={() => setConfirm(null)}
+                onClick={() => {
+                  setConfirm(null);
+                  setMessage("");
+                }}
                 className="px-4 py-2 text-sm font-medium border border-stone-200 rounded-md hover:bg-stone-50 text-stone-600"
               >
                 Cancel
               </button>
               <button
-                onClick={() => request(confirm)}
+                onClick={() => request(confirm, message)}
                 disabled={busy === confirm}
                 className="px-4 py-2 text-sm font-semibold bg-accent-500 text-white rounded-md hover:bg-accent-600 disabled:opacity-50"
               >

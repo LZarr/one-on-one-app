@@ -42,15 +42,25 @@ export async function isRetreatAdmin(userId: string, retreatId: string): Promise
   return (user?.superAdmin ?? false) || !!ra;
 }
 
-export function generateSlots(retreat: RetreatConfig): Date[] {
+export type DayHoursOverride = { dayStart: string; dayEnd: string };
+export type DayHoursMap = Record<string, DayHoursOverride>;
+
+export async function getDayHoursMap(retreatId: string): Promise<DayHoursMap> {
+  const rows = await prisma.retreatDayHours.findMany({ where: { retreatId } });
+  return Object.fromEntries(rows.map((r) => [r.date, { dayStart: r.dayStart, dayEnd: r.dayEnd }]));
+}
+
+export function generateSlots(retreat: RetreatConfig, overrides: DayHoursMap = {}): Date[] {
   const startDate = new Date(retreat.slotsStart + ":00Z");
   const endDate = new Date(retreat.slotsEnd + ":00Z");
-  const [dsH, dsM] = retreat.dayStart.split(":").map(Number);
-  const [deH, deM] = retreat.dayEnd.split(":").map(Number);
 
   const slots: Date[] = [];
   const cursor = new Date(startDate);
   while (cursor < endDate) {
+    const dateKey = cursor.toISOString().slice(0, 10);
+    const hours = overrides[dateKey] ?? { dayStart: retreat.dayStart, dayEnd: retreat.dayEnd };
+    const [dsH, dsM] = hours.dayStart.split(":").map(Number);
+    const [deH, deM] = hours.dayEnd.split(":").map(Number);
     const h = cursor.getUTCHours();
     const m = cursor.getUTCMinutes();
     const minutesOfDay = h * 60 + m;

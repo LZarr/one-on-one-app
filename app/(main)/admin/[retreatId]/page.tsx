@@ -3,7 +3,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { isRetreatAdmin, isSuperAdmin, isValidTimezone, nowInRetreatTz, generateSlots, groupSlotsByDay } from "@/lib/config";
+import { isRetreatAdmin, isSuperAdmin, isValidTimezone, nowInRetreatTz, generateSlots, groupSlotsByDay, getDayHoursMap } from "@/lib/config";
 import SlotChipPicker from "./SlotChipPicker";
 import CopyJoinLink from "./CopyJoinLink";
 import SettingsSaveButton from "./SettingsSaveButton";
@@ -15,6 +15,7 @@ import { formatSlotDay, formatSlotTime } from "@/lib/format";
 import { notifyPendingReminder, notifyRetreatAdminAdded } from "@/lib/notifications";
 import ConfirmButton from "../ConfirmButton";
 import SendRemindersButton from "../SendRemindersButton";
+import { parseTsv } from "@/lib/tsv";
 
 function parseSlotList(value: FormDataEntryValue | null) {
   return Array.from(new Set(String(value || "").split("\n").map((s) => s.trim()).filter(Boolean))).sort();
@@ -25,6 +26,88 @@ async function requireAdmin(retreatId: string) {
   if (!s.userId) redirect("/login");
   if (!(await isRetreatAdmin(s.userId, retreatId))) redirect("/schedule");
   return s;
+}
+
+async function addRosterNames(formData: FormData) {
+  "use server";
+  const retreatId = String(formData.get("retreatId"));
+  await requireAdmin(retreatId);
+  const names = Array.from(
+    new Set(
+      String(formData.get("names") || "")
+        .split("\n")
+        .map((n) => n.trim())
+        .filter(Boolean),
+    ),
+  );
+  if (names.length === 0) redirect(`/admin/${retreatId}`);
+
+  const existing = await prisma.retreatAttendance.findMany({
+    where: { retreatId },
+    include: { user: { select: { name: true } } },
+  });
+  const existingNames = new Set(existing.map((a) => a.user.name.toLowerCase()));
+  const toAdd = names.filter((n) => !existingNames.has(n.toLowerCase()));
+
+  for (const name of toAdd) {
+    const user = await prisma.user.create({ data: { name } });
+    await prisma.retreatAttendance.create({ data: { userId: user.id, retreatId } });
+  }
+  redirect(`/admin/${retreatId}`);
+}
+
+type ProfileFields = {
+  pronouns?: string;
+  school?: string;
+  bio?: string;
+  canHelpWith?: string;
+  canBeHelpedWith?: string;
+  keyCrux?: string;
+  personalLink?: string;
+};
+
+function parseProfileFields(cols: string[]): ProfileFields {
+  const fields: ProfileFields = {};
+  if (cols[1]) fields.pronouns = cols[1];
+  if (cols[2]) fields.school = cols[2];
+  if (cols[3]) fields.bio = cols[3];
+  if (cols[4]) fields.canHelpWith = cols[4];
+  if (cols[5]) fields.canBeHelpedWith = cols[5];
+  if (cols[6]) fields.keyCrux = cols[6];
+  if (cols[7]) fields.personalLink = cols[7];
+  return fields;
+}
+
+async function importProfiles(formData: FormData) {
+  "use server";
+  const retreatId = String(formData.get("retreatId"));
+  await requireAdmin(retreatId);
+
+  const rows = parseTsv(String(formData.get("profiles") || ""))
+    .map((cols) => cols.map((c) => c.trim()))
+    .filter((cols) => cols[0] && cols[0].toLowerCase() !== "name");
+
+  if (rows.length === 0) redirect(`/admin/${retreatId}`);
+
+  const existing = await prisma.retreatAttendance.findMany({
+    where: { retreatId },
+    include: { user: { select: { id: true, name: true } } },
+  });
+  const byName = new Map(existing.map((a) => [a.user.name.toLowerCase(), a.user.id]));
+
+  for (const cols of rows) {
+    const name = cols[0];
+    const fields = parseProfileFields(cols);
+    const existingId = byName.get(name.toLowerCase());
+    if (existingId) {
+      await prisma.user.update({ where: { id: existingId }, data: fields });
+    } else {
+      const user = await prisma.user.create({ data: { name, ...fields } });
+      await prisma.retreatAttendance.create({ data: { userId: user.id, retreatId } });
+      byName.set(name.toLowerCase(), user.id);
+    }
+  }
+  redirect(`/admin/${retreatId}`);
 }
 
 async function updateSettings(formData: FormData) {
@@ -48,6 +131,24 @@ async function updateSettings(formData: FormData) {
       active: formData.get("active") === "on",
     },
   });
+
+  const dayHourUpdates: { date: string; dayStart: string; dayEnd: string }[] = [];
+  for (const key of formData.keys()) {
+    const match = key.match(/^dayStart_(.+)$/);
+    if (!match) continue;
+    const date = match[1];
+    const dayStart = String(formData.get(`dayStart_${date}`) || "").trim();
+    const dayEnd = String(formData.get(`dayEnd_${date}`) || "").trim();
+    if (dayStart && dayEnd) dayHourUpdates.push({ date, dayStart, dayEnd });
+  }
+  for (const { date, dayStart, dayEnd } of dayHourUpdates) {
+    await prisma.retreatDayHours.upsert({
+      where: { retreatId_date: { retreatId, date } },
+      update: { dayStart, dayEnd },
+      create: { retreatId, date, dayStart, dayEnd },
+    });
+  }
+
   redirect(`/admin/${retreatId}`);
 }
 
@@ -123,14 +224,15 @@ async function sendPendingReminders(_prev: string | null, formData: FormData): P
     select: { toUserId: true, to: { select: { name: true, email: true } } },
   });
 
-  const byUser: Record<string, { name: string; email: string; count: number }> = {};
+  const byUser: Record<string, { name: string; email: string | null; count: number }> = {};
   for (const r of pendingRequests) {
     if (!byUser[r.toUserId]) byUser[r.toUserId] = { name: r.to.name || "there", email: r.to.email, count: 0 };
     byUser[r.toUserId].count++;
   }
   const users = Object.values(byUser);
-  await Promise.all(users.map((u) => notifyPendingReminder(u.email, u.name, u.count, retreatName)));
-  return `Sent reminders to ${users.length} ${users.length === 1 ? "person" : "people"}.`;
+  const notified = users.filter((u) => u.email);
+  await Promise.all(notified.map((u) => notifyPendingReminder(u.email as string, u.name, u.count, retreatName)));
+  return `Sent reminders to ${notified.length} ${notified.length === 1 ? "person" : "people"}.`;
 }
 
 export default async function RetreatAdminPage({ params }: { params: Promise<{ retreatId: string }> }) {
@@ -143,13 +245,15 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
   const host = h.get("host") || "localhost:3000";
   const proto = host.includes("localhost") ? "http" : "https";
   const joinUrl = `${proto}://${host}/join/${retreatId}`;
+  const rosterUrl = `${proto}://${host}/attend/${retreatId}`;
 
   const retreat = await prisma.retreat.findUnique({ where: { id: retreatId } });
   if (!retreat) notFound();
   const highlightedSlots = retreat.highlightedSlots ?? [];
   const blockedSlots = retreat.blockedSlots ?? [];
+  const dayHours = await getDayHoursMap(retreatId);
 
-  const allSlots = generateSlots(retreat);
+  const allSlots = generateSlots(retreat, dayHours);
   const totalSlotCount = allSlots.length;
   const slotGroupsIso = Object.fromEntries(
     Object.entries(groupSlotsByDay(allSlots)).map(([k, v]) => [k, v.map((d) => d.toISOString())])
@@ -244,13 +348,14 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
   });
   const pendingByUser: Record<string, { name: string; email: string; count: number }> = {};
   for (const r of futurePending) {
+    if (!r.to.email) continue; // roster-only attendees have no email to remind
     if (!pendingByUser[r.toUserId]) pendingByUser[r.toUserId] = { name: r.to.name || "?", email: r.to.email, count: 0 };
     pendingByUser[r.toUserId].count++;
   }
   const pendingUsersList = Object.values(pendingByUser).sort((a, b) => b.count - a.count);
   const sendRemindersForRetreat = sendPendingReminders.bind(null);
 
-  const attendeeBriefs = attendees.map((a) => ({ id: a.userId, name: a.user.name || a.user.email, email: a.user.email }));
+  const attendeeBriefs = attendees.map((a) => ({ id: a.userId, name: a.user.name || a.user.email || "Unnamed", email: a.user.email }));
 
   return (
     <div className="space-y-6">
@@ -266,6 +371,10 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
         <div className="flex items-center gap-2 mt-1.5">
           <span className="text-xs text-stone-400">Join link:</span>
           <CopyJoinLink url={joinUrl} />
+        </div>
+        <div className="flex items-center gap-2 mt-1">
+          <span className="text-xs text-stone-400">Roster link (pick-a-name, no email needed):</span>
+          <CopyJoinLink url={rosterUrl} />
         </div>
       </div>
 
@@ -307,6 +416,26 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
       </Section>
 
       <Section title="Attendees" count={attendees.length}>
+        <form action={addRosterNames} className="mb-4 space-y-2">
+          <input type="hidden" name="retreatId" value={retreatId} />
+          <label className="block text-xs font-semibold text-stone-600">
+            Add attendees by name (one per line, no email needed)
+          </label>
+          <textarea
+            name="names"
+            rows={3}
+            placeholder={"Jane Doe\nJohn Smith"}
+            className="w-full border border-stone-200 rounded-md px-3 py-2 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500"
+          />
+          <SubmitButton
+            className="bg-accent-500 text-white rounded-md px-4 py-2 text-sm font-semibold hover:bg-accent-600 disabled:opacity-60"
+            pendingChildren="Adding…"
+            successChildren="Added"
+            showSuccess={false}
+          >
+            Add to roster
+          </SubmitButton>
+        </form>
         <div className="overflow-hidden rounded-md border border-stone-200 bg-white divide-y divide-stone-100">
           {attendees.map((a) => {
             const st = statsByUser[a.userId] || { accepted: 0, pendingOut: 0, pendingIn: 0, declined: 0, availability: 0 };
@@ -314,7 +443,7 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
               <div key={a.id} className="p-3 flex items-center justify-between gap-3 text-sm">
                 <div className="min-w-0 flex-1">
                   <div className="font-semibold truncate">{a.user.name}</div>
-                  <div className="text-xs text-stone-400 truncate">{a.user.email}</div>
+                  <div className="text-xs text-stone-400 truncate">{a.user.email || "No email (roster-only)"}</div>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <CountBadge title="Booked meetings" value={st.accepted} color="emerald" label="booked" />
@@ -337,6 +466,35 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
           })}
           {attendees.length === 0 && <div className="p-4 text-xs text-stone-400">No attendees yet.</div>}
         </div>
+      </Section>
+
+      <Section title="Import profiles" subtitle="paste rows copied from a spreadsheet">
+        <form action={importProfiles} className="space-y-2">
+          <input type="hidden" name="retreatId" value={retreatId} />
+          <p className="text-xs text-stone-500 leading-relaxed">
+            Select a range in Google Sheets, copy, and paste directly below — multi-line cells and blank (unanswered) cells are handled automatically. Columns, in order:
+            <br />
+            <span className="font-mono text-[11px] text-stone-600">
+              Name, Pronouns, School, Bio, I can help others with…, Other people can help me with…, Key crux, Personal link
+            </span>
+            <br />
+            A header row is fine, it&apos;s skipped automatically. New names are added to the roster; names that already match an attendee have their profile updated.
+          </p>
+          <textarea
+            name="profiles"
+            rows={8}
+            placeholder={"Paste rows copied from Google Sheets here"}
+            className="w-full border border-stone-200 rounded-md px-3 py-2 text-xs font-mono bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500"
+          />
+          <SubmitButton
+            className="bg-accent-500 text-white rounded-md px-4 py-2 text-sm font-semibold hover:bg-accent-600 disabled:opacity-60"
+            pendingChildren="Importing…"
+            successChildren="Imported"
+            showSuccess={false}
+          >
+            Import profiles
+          </SubmitButton>
+        </form>
       </Section>
 
       <Section title="Meetings" count={meetings.length}>
@@ -410,11 +568,11 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-stone-600 mb-1">Day start</label>
+              <label className="block text-xs font-semibold text-stone-600 mb-1">Default day start</label>
               <input name="dayStart" type="time" defaultValue={retreat.dayStart} className="w-full border border-stone-200 rounded-md px-3 py-2 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-stone-600 mb-1">Day end</label>
+              <label className="block text-xs font-semibold text-stone-600 mb-1">Default day end</label>
               <input name="dayEnd" type="time" defaultValue={retreat.dayEnd} className="w-full border border-stone-200 rounded-md px-3 py-2 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500" />
             </div>
             <div>
@@ -422,6 +580,45 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
               <input name="granularityMinutes" type="number" defaultValue={retreat.granularityMinutes} min={5} className="w-full border border-stone-200 rounded-md px-3 py-2 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500" />
             </div>
           </div>
+          <details className="group">
+            <summary className="text-xs font-semibold text-stone-600 cursor-pointer select-none flex items-center gap-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 text-stone-400 transition-transform group-open:rotate-90">
+                <path fillRule="evenodd" d="M6.22 4.22a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06l-3.25 3.25a.75.75 0 0 1-1.06-1.06L8.94 8 6.22 5.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+              </svg>
+              Per-day hours
+            </summary>
+            <div className="mt-2 space-y-2">
+              <p className="text-[11px] text-stone-400">
+                Override the default day start/end for specific days (e.g. a shorter first or last day). Leave a day at the default if it doesn&apos;t need its own hours.
+              </p>
+              {Object.keys(slotGroupsIso).sort().map((date) => {
+                const override = dayHours[date];
+                return (
+                  <div key={date} className="grid grid-cols-3 gap-3 items-end">
+                    <div className="text-xs font-medium text-stone-700 pb-2">
+                      {new Date(date + "T00:00:00Z").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}
+                    </div>
+                    <div>
+                      <input
+                        name={`dayStart_${date}`}
+                        type="time"
+                        defaultValue={override?.dayStart ?? retreat.dayStart}
+                        className="w-full border border-stone-200 rounded-md px-3 py-2 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        name={`dayEnd_${date}`}
+                        type="time"
+                        defaultValue={override?.dayEnd ?? retreat.dayEnd}
+                        className="w-full border border-stone-200 rounded-md px-3 py-2 text-sm bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </details>
           <details className="group">
             <summary className="text-xs font-semibold text-stone-600 cursor-pointer select-none flex items-center gap-1.5">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 text-stone-400 transition-transform group-open:rotate-90">

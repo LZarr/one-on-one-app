@@ -5,7 +5,7 @@ type MeetingForIcs = {
   slotStart: Date;
   durationMinutes: number;
   withName: string;
-  withEmail: string;
+  withEmail: string | null;
   retreatName: string;
 };
 
@@ -31,7 +31,7 @@ export function meetingsToIcs(meetings: MeetingForIcs[]): string {
     startInputType: "local",
     startOutputType: "local",
     duration: { minutes: m.durationMinutes },
-    attendees: [{ name: m.withName, email: m.withEmail }],
+    attendees: m.withEmail ? [{ name: m.withName, email: m.withEmail }] : undefined,
   }));
   const { error, value } = createEvents(events);
   if (error) throw error;

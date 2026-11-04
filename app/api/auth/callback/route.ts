@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   }
   const session = await getSession();
   session.userId = user.id;
-  session.email = user.email;
+  session.email = user.email ?? undefined;
   session.name = user.name;
 
   const retreatId = url.searchParams.get("retreat");

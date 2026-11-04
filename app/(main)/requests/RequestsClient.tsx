@@ -3,13 +3,15 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { formatSlotDay, formatSlotTime } from "@/lib/format";
 
-type Person = { id: string; name: string; email: string };
+type Person = { id: string; name: string; email: string | null };
 type R = {
   id: string;
   slotStart: string;
   status: string;
   fromUserId: string;
   toUserId: string;
+  message: string | null;
+  assignedByAdmin: boolean;
   from: Person;
   to: Person;
 };
@@ -63,6 +65,9 @@ export default function RequestsClient({
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-sm text-stone-900">{r.from.name}</div>
               <div className="text-xs text-stone-400">{fmtTime(r.slotStart)}</div>
+              {r.message && (
+                <div className="text-xs text-stone-500 italic mt-1 whitespace-pre-wrap">&ldquo;{r.message}&rdquo;</div>
+              )}
             </div>
             <div className="flex gap-2 shrink-0">
               <button
@@ -98,6 +103,9 @@ export default function RequestsClient({
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-sm text-stone-900">{r.to.name}</div>
               <div className="text-xs text-stone-400">{fmtTime(r.slotStart)}</div>
+              {r.message && (
+                <div className="text-xs text-stone-500 italic mt-1 whitespace-pre-wrap">&ldquo;{r.message}&rdquo;</div>
+              )}
             </div>
             <button
               className="px-3 py-1.5 border border-stone-200 text-stone-500 rounded-md text-xs font-medium hover:bg-stone-50 shrink-0"
@@ -137,9 +145,12 @@ export default function RequestsClient({
         {confirmed.map((r) => {
           const other = r.fromUserId === meId ? r.to : r.from;
           return (
-            <Row key={r.id} accent="emerald">
+            <Row key={r.id} accent={r.assignedByAdmin ? undefined : "emerald"}>
               <div className="flex-1 min-w-0">
-                <div className="font-semibold text-sm text-stone-900">{other.name}</div>
+                <div className="font-semibold text-sm text-stone-900">
+                  {other.name}
+                  {r.assignedByAdmin && <span className="font-normal text-stone-400"> (assigned)</span>}
+                </div>
                 <div className="text-xs text-stone-400">
                   {fmtTime(r.slotStart)}
                 </div>
