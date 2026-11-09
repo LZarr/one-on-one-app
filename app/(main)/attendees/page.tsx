@@ -26,7 +26,7 @@ export default async function AttendeesPage({
           slotStart: new Date(slot),
           userId: { not: s.userId },
         },
-        include: { user: { select: { id: true, name: true, email: true, school: true } } },
+        include: { user: { select: { id: true, name: true, email: true, school: true, superAdmin: true } } },
       }),
       prisma.meetingRequest.findMany({
         where: {
@@ -40,16 +40,16 @@ export default async function AttendeesPage({
     const busyIds = new Set(busy.flatMap((m) => [m.fromUserId, m.toUserId]));
     others = availableRecords
       .map((a) => a.user)
-      .filter((u) => !busyIds.has(u.id))
+      .filter((u) => !busyIds.has(u.id) && !u.superAdmin)
       .sort((a, b) => a.name.localeCompare(b.name));
   } else {
     const att = await prisma.retreatAttendance.findMany({
       where: { retreatId: s.retreatId },
-      include: { user: { select: { id: true, name: true, email: true, school: true } } },
+      include: { user: { select: { id: true, name: true, email: true, school: true, superAdmin: true } } },
     });
     others = att
       .map((a) => a.user)
-      .filter((u) => u.id !== s.userId)
+      .filter((u) => u.id !== s.userId && !u.superAdmin)
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 

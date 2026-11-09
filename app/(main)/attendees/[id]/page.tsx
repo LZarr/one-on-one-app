@@ -131,9 +131,7 @@ export default async function AttendeeProfile({
         </details>
       )}
 
-      <p className="text-sm text-stone-400 mt-0.5 mb-6">
-        Tap a green slot to request a 1:1
-      </p>
+      <div className="mb-6" />
       <OverlapGrid
         toUserId={id}
         toUserName={user.name || "them"}

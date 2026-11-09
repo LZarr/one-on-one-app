@@ -34,10 +34,12 @@ export default async function AttendPage({
 
   const attendances = await prisma.retreatAttendance.findMany({
     where: { retreatId },
-    include: { user: { select: { id: true, name: true } } },
+    include: { user: { select: { id: true, name: true, superAdmin: true } } },
     orderBy: { user: { name: "asc" } },
   });
-  const people = attendances.map((a) => ({ id: a.user.id, name: a.user.name }));
+  const people = attendances
+    .filter((a) => !a.user.superAdmin)
+    .map((a) => ({ id: a.user.id, name: a.user.name }));
   const action = selectAttendee.bind(null, retreatId);
 
   return (
@@ -48,7 +50,6 @@ export default async function AttendPage({
             <BrandMark size="lg" />
           </div>
           <h1 className="text-2xl font-bold text-stone-900">{retreat.name}</h1>
-          <p className="text-sm text-stone-500 mt-1">Find your name to sign in — no email needed</p>
         </div>
         <div className="bg-white rounded-lg border border-stone-200 shadow-sm p-6">
           <NamePicker people={people} action={action} />

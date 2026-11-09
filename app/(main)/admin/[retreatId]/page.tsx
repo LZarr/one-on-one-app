@@ -223,6 +223,7 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
   const proto = host.includes("localhost") ? "http" : "https";
   const joinUrl = `${proto}://${host}/join/${retreatId}`;
   const rosterUrl = `${proto}://${host}/attend/${retreatId}`;
+  const directAdminUrl = `${proto}://${host}/attend/${retreatId}/direct/${s.userId}`;
 
   const retreat = await prisma.retreat.findUnique({ where: { id: retreatId } });
   if (!retreat) notFound();
@@ -332,7 +333,9 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
   const pendingUsersList = Object.values(pendingByUser).sort((a, b) => b.count - a.count);
   const sendRemindersForRetreat = sendPendingReminders.bind(null);
 
-  const attendeeBriefs = attendees.map((a) => ({ id: a.userId, name: a.user.name || a.user.email || "Unnamed", email: a.user.email }));
+  const attendeeBriefs = attendees
+    .filter((a) => !a.user.superAdmin)
+    .map((a) => ({ id: a.userId, name: a.user.name || a.user.email || "Unnamed", email: a.user.email }));
 
   return (
     <div className="space-y-6">
@@ -352,6 +355,10 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
         <div className="flex items-center gap-2 mt-1">
           <span className="text-xs text-stone-400">Roster link (pick-a-name, no email needed):</span>
           <CopyJoinLink url={rosterUrl} />
+        </div>
+        <div className="flex items-center gap-2 mt-1">
+          <span className="text-xs text-stone-400">Your direct sign-in link (bookmark this, not shown to attendees):</span>
+          <CopyJoinLink url={directAdminUrl} />
         </div>
       </div>
 
