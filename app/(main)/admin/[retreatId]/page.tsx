@@ -180,6 +180,29 @@ async function updateAttendeeProfile(retreatId: string, userId: string, formData
   redirect(`/admin/${retreatId}`);
 }
 
+async function saveAgenda(formData: FormData) {
+  "use server";
+  const retreatId = String(formData.get("retreatId"));
+  await requireAdmin(retreatId);
+  const lines = String(formData.get("agenda") || "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const items = lines
+    .map((line) => {
+      const [date, startTime, endTime, title, subtitle] = line.split("|").map((p) => p?.trim() ?? "");
+      return { date, startTime, endTime, title, subtitle: subtitle || null };
+    })
+    .filter((i) => i.date && i.startTime && i.endTime && i.title);
+
+  await prisma.$transaction([
+    prisma.agendaItem.deleteMany({ where: { retreatId } }),
+    ...items.map((i) => prisma.agendaItem.create({ data: { retreatId, ...i } })),
+  ]);
+  redirect(`/admin/${retreatId}`);
+}
+
 async function cancelMeeting(formData: FormData) {
   "use server";
   const retreatId = String(formData.get("retreatId"));
@@ -241,7 +264,7 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
     Object.entries(slotGroupsIso).map(([k, isos]) => [k, isos.filter((iso) => !blockedSlots.includes(iso))])
   );
 
-  const [attendees, meetings, allRequests, admins, allAvailability] = await Promise.all([
+  const [attendees, meetings, allRequests, admins, allAvailability, agendaItems] = await Promise.all([
     prisma.retreatAttendance.findMany({
       where: { retreatId },
       include: { user: true },
@@ -267,7 +290,15 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
       where: { retreatId },
       select: { userId: true, slotStart: true },
     }),
+    prisma.agendaItem.findMany({
+      where: { retreatId },
+      orderBy: [{ date: "asc" }, { startTime: "asc" }],
+    }),
   ]);
+
+  const agendaText = agendaItems
+    .map((i) => [i.date, i.startTime, i.endTime, i.title, i.subtitle || ""].join("|"))
+    .join("\n");
 
   const confirmed = allRequests.filter((r) => r.status === "accepted");
   const pending = allRequests.filter((r) => r.status === "pending");
@@ -402,6 +433,30 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
 
       <Section title="Bulk assign 1:1s" subtitle="pair up many people at once from a pasted list">
         <BulkAssignMeetings retreatId={retreatId} slotGroups={visibleSlotGroups} />
+      </Section>
+
+      <Section title="Event agenda" subtitle="the official schedule, shown on the Agenda tab" count={agendaItems.length}>
+        <form action={saveAgenda} className="space-y-2">
+          <input type="hidden" name="retreatId" value={retreatId} />
+          <p className="text-xs text-stone-500 leading-relaxed">
+            One item per line: <span className="font-mono text-[11px] text-stone-600">date|start|end|title|subtitle</span> (subtitle optional). Times are 24-hour, e.g. <span className="font-mono text-[11px] text-stone-600">2026-11-13|16:00|17:00|Dinner</span>. Saving replaces the entire agenda below with what&apos;s in this box.
+          </p>
+          <textarea
+            name="agenda"
+            rows={14}
+            defaultValue={agendaText}
+            placeholder={"2026-11-13|18:00|19:00|Dinner\n2026-11-13|19:30|20:00|Activity"}
+            className="w-full border border-stone-200 rounded-md px-3 py-2 text-xs font-mono bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500"
+          />
+          <SubmitButton
+            className="bg-accent-500 text-white rounded-md px-4 py-2 text-sm font-semibold hover:bg-accent-600 disabled:opacity-60"
+            pendingChildren="Saving…"
+            successChildren="Saved"
+            showSuccess={false}
+          >
+            Save agenda
+          </SubmitButton>
+        </form>
       </Section>
 
       <Section title="Attendees" count={attendees.length}>

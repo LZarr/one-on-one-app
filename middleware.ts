@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getIronSession } from "iron-session";
 import { sessionOptions, type SessionData } from "@/lib/session";
 
-const PROTECTED = ["/schedule", "/attendees", "/profile", "/requests"];
+const PROTECTED = ["/schedule", "/attendees", "/profile", "/requests", "/agenda"];
 const NEEDS_USER_ONLY = ["/no-retreat", "/admin"];
 
 export async function middleware(req: NextRequest) {
@@ -30,6 +30,7 @@ export const config = {
     "/profile/:path*",
     "/admin/:path*",
     "/requests/:path*",
+    "/agenda/:path*",
     "/no-retreat",
   ],
 };

@@ -57,6 +57,21 @@ model Retreat {
   attendances RetreatAttendance[]
   admins      RetreatAdmin[]
   dayHours    RetreatDayHours[]
+  agendaItems AgendaItem[]
+}
+
+model AgendaItem {
+  id        String  @id @default(cuid())
+  retreatId String
+  date      String  // "2026-11-13"
+  startTime String  // "16:00"
+  endTime   String  // "17:00"
+  title     String
+  subtitle  String?
+
+  retreat Retreat @relation(fields: [retreatId], references: [id], onDelete: Cascade)
+
+  @@index([retreatId, date])
 }
 
 model RetreatDayHours {
