@@ -45,6 +45,7 @@ export default async function SchedulePage() {
       otherPersonId: string;
       type: "confirmed" | "incoming" | "outgoing";
       assignedByAdmin: boolean;
+      message: string | null;
     }
   > = {};
 
@@ -63,6 +64,7 @@ export default async function SchedulePage() {
       otherPersonId: other.id,
       type: isConfirmed ? "confirmed" : isIncoming ? "incoming" : "outgoing",
       assignedByAdmin: r.assignedByAdmin,
+      message: r.message,
     };
   }
 

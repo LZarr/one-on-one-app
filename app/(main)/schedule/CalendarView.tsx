@@ -10,6 +10,7 @@ type SlotMeeting = {
   otherPersonId: string;
   type: "confirmed" | "incoming" | "outgoing";
   assignedByAdmin: boolean;
+  message: string | null;
 };
 
 type Props = {
@@ -201,7 +202,21 @@ export default function CalendarView({
         <div key={iso} className={`${base} border-amber-200 bg-amber-50 ${hlCls}`}>
           <span className="text-xs text-amber-700 w-16 shrink-0 font-semibold">{time}</span>
           <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-          <span className="text-sm font-medium text-amber-900 truncate flex-1">{state.meeting.otherPersonName}</span>
+          <span className="text-sm font-medium text-amber-900 truncate flex-1">
+            {state.meeting.otherPersonName}
+            {state.meeting.message && (
+              <span title={state.meeting.message}>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="w-3.5 h-3.5 inline-block ml-1.5 -mt-0.5 text-amber-500"
+                >
+                  <path fillRule="evenodd" d="M2 4.25A2.25 2.25 0 0 1 4.25 2h11.5A2.25 2.25 0 0 1 18 4.25v8.5A2.25 2.25 0 0 1 15.75 15H9.06l-2.573 2.573A.75.75 0 0 1 5.25 17v-2H4.25A2.25 2.25 0 0 1 2 12.75v-8.5Z" clipRule="evenodd" />
+                </svg>
+              </span>
+            )}
+          </span>
           <div className="flex self-stretch shrink-0 w-[112px] border-l border-amber-200">
             <button
               onClick={() => act(state.meeting.requestId, "accept", iso)}
@@ -380,6 +395,9 @@ export default function CalendarView({
                     <div className="text-xs text-stone-500 mt-0.5">
                       {formatSlotDay(new Date(iso))} · {formatSlotTime(new Date(iso))}
                     </div>
+                    {m.message && (
+                      <div className="text-xs text-stone-500 italic mt-1 whitespace-pre-wrap">&ldquo;{m.message}&rdquo;</div>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <button

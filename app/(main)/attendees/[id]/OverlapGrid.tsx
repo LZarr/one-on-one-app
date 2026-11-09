@@ -9,6 +9,7 @@ type BetweenUsRequest = {
   slotStart: string;
   direction: "incoming" | "outgoing";
   status: "pending" | "accepted";
+  message: string | null;
 };
 
 type Props = {
@@ -84,7 +85,7 @@ export default function OverlapGrid({
     if (j.id) {
       setBetweenUsMap({
         ...betweenUsMap,
-        [iso]: { requestId: j.id, slotStart: iso, direction: "outgoing", status: "pending" },
+        [iso]: { requestId: j.id, slotStart: iso, direction: "outgoing", status: "pending", message: msg.trim() || null },
       });
     }
     router.refresh();
@@ -260,6 +261,18 @@ export default function OverlapGrid({
           <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
           <span className="text-sm font-medium text-amber-900 truncate flex-1">
             {toUserName} requested
+            {p.message && (
+              <span title={p.message}>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="w-3.5 h-3.5 inline-block ml-1.5 -mt-0.5 text-amber-500"
+                >
+                  <path fillRule="evenodd" d="M2 4.25A2.25 2.25 0 0 1 4.25 2h11.5A2.25 2.25 0 0 1 18 4.25v8.5A2.25 2.25 0 0 1 15.75 15H9.06l-2.573 2.573A.75.75 0 0 1 5.25 17v-2H4.25A2.25 2.25 0 0 1 2 12.75v-8.5Z" clipRule="evenodd" />
+                </svg>
+              </span>
+            )}
           </span>
           <div className="flex self-stretch shrink-0 w-[112px] border-l border-amber-200">
             <button

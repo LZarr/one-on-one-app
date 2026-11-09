@@ -57,7 +57,7 @@ export default async function AttendeeProfile({
           { fromUserId: id, toUserId: s.userId },
         ],
       },
-      select: { id: true, slotStart: true, fromUserId: true, status: true },
+      select: { id: true, slotStart: true, fromUserId: true, status: true, message: true },
     }),
   ]);
 
@@ -150,6 +150,7 @@ export default async function AttendeeProfile({
           slotStart: p.slotStart.toISOString(),
           direction: p.fromUserId === s.userId ? "outgoing" : "incoming",
           status: p.status as "pending" | "accepted",
+          message: p.message,
         }))}
         highlightedSlots={retreat.highlightedSlots ?? []}
         blockedSlots={retreat.blockedSlots ?? []}
