@@ -17,6 +17,7 @@ import ConfirmButton from "../ConfirmButton";
 import SendRemindersButton from "../SendRemindersButton";
 import ImportProfiles from "./ImportProfiles";
 import EditAttendeeButton from "./EditAttendeeButton";
+import BulkAssignMeetings from "./BulkAssignMeetings";
 import { ensureDefaultAvailability } from "@/lib/availability";
 
 function parseSlotList(value: FormDataEntryValue | null) {
@@ -397,6 +398,10 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
           busyByUser={busyByUser}
           highlightedSlots={highlightedSlots}
         />
+      </Section>
+
+      <Section title="Bulk assign 1:1s" subtitle="pair up many people at once from a pasted list">
+        <BulkAssignMeetings retreatId={retreatId} slotGroups={visibleSlotGroups} />
       </Section>
 
       <Section title="Attendees" count={attendees.length}>
