@@ -74,3 +74,4 @@ The `REDIRECTS` env var is a JSON map of short paths to destinations, e.g. `REDI
 
 - **Super admins** (`User.superAdmin = true`) can create retreats, manage any retreat, and grant/revoke super admin access at `/admin`.
 - **Retreat admins** (rows in `RetreatAdmin`) can manage a single retreat's settings, attendees, and meetings at `/admin/<retreatId>`.
+
