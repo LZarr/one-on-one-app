@@ -15,7 +15,7 @@ import { formatSlotDay, formatSlotTime } from "@/lib/format";
 import { notifyPendingReminder, notifyRetreatAdminAdded } from "@/lib/notifications";
 import ConfirmButton from "../ConfirmButton";
 import SendRemindersButton from "../SendRemindersButton";
-import { parseTsv } from "@/lib/tsv";
+import ImportProfiles from "./ImportProfiles";
 
 function parseSlotList(value: FormDataEntryValue | null) {
   return Array.from(new Set(String(value || "").split("\n").map((s) => s.trim()).filter(Boolean))).sort();
@@ -52,60 +52,6 @@ async function addRosterNames(formData: FormData) {
   for (const name of toAdd) {
     const user = await prisma.user.create({ data: { name } });
     await prisma.retreatAttendance.create({ data: { userId: user.id, retreatId } });
-  }
-  redirect(`/admin/${retreatId}`);
-}
-
-type ProfileFields = {
-  pronouns?: string;
-  school?: string;
-  bio?: string;
-  canHelpWith?: string;
-  canBeHelpedWith?: string;
-  keyCrux?: string;
-  personalLink?: string;
-};
-
-function parseProfileFields(cols: string[]): ProfileFields {
-  const fields: ProfileFields = {};
-  if (cols[1]) fields.pronouns = cols[1];
-  if (cols[2]) fields.school = cols[2];
-  if (cols[3]) fields.bio = cols[3];
-  if (cols[4]) fields.canHelpWith = cols[4];
-  if (cols[5]) fields.canBeHelpedWith = cols[5];
-  if (cols[6]) fields.keyCrux = cols[6];
-  if (cols[7]) fields.personalLink = cols[7];
-  return fields;
-}
-
-async function importProfiles(formData: FormData) {
-  "use server";
-  const retreatId = String(formData.get("retreatId"));
-  await requireAdmin(retreatId);
-
-  const rows = parseTsv(String(formData.get("profiles") || ""))
-    .map((cols) => cols.map((c) => c.trim()))
-    .filter((cols) => cols[0] && cols[0].toLowerCase() !== "name");
-
-  if (rows.length === 0) redirect(`/admin/${retreatId}`);
-
-  const existing = await prisma.retreatAttendance.findMany({
-    where: { retreatId },
-    include: { user: { select: { id: true, name: true } } },
-  });
-  const byName = new Map(existing.map((a) => [a.user.name.toLowerCase(), a.user.id]));
-
-  for (const cols of rows) {
-    const name = cols[0];
-    const fields = parseProfileFields(cols);
-    const existingId = byName.get(name.toLowerCase());
-    if (existingId) {
-      await prisma.user.update({ where: { id: existingId }, data: fields });
-    } else {
-      const user = await prisma.user.create({ data: { name, ...fields } });
-      await prisma.retreatAttendance.create({ data: { userId: user.id, retreatId } });
-      byName.set(name.toLowerCase(), user.id);
-    }
   }
   redirect(`/admin/${retreatId}`);
 }
@@ -469,32 +415,7 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
       </Section>
 
       <Section title="Import profiles" subtitle="paste rows copied from a spreadsheet">
-        <form action={importProfiles} className="space-y-2">
-          <input type="hidden" name="retreatId" value={retreatId} />
-          <p className="text-xs text-stone-500 leading-relaxed">
-            Select a range in Google Sheets, copy, and paste directly below — multi-line cells and blank (unanswered) cells are handled automatically. Columns, in order:
-            <br />
-            <span className="font-mono text-[11px] text-stone-600">
-              Name, Pronouns, School, Bio, I can help others with…, Other people can help me with…, Key crux, Personal link
-            </span>
-            <br />
-            A header row is fine, it&apos;s skipped automatically. New names are added to the roster; names that already match an attendee have their profile updated.
-          </p>
-          <textarea
-            name="profiles"
-            rows={8}
-            placeholder={"Paste rows copied from Google Sheets here"}
-            className="w-full border border-stone-200 rounded-md px-3 py-2 text-xs font-mono bg-stone-50/50 focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500"
-          />
-          <SubmitButton
-            className="bg-accent-500 text-white rounded-md px-4 py-2 text-sm font-semibold hover:bg-accent-600 disabled:opacity-60"
-            pendingChildren="Importing…"
-            successChildren="Imported"
-            showSuccess={false}
-          >
-            Import profiles
-          </SubmitButton>
-        </form>
+        <ImportProfiles retreatId={retreatId} />
       </Section>
 
       <Section title="Meetings" count={meetings.length}>
