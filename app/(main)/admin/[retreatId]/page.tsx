@@ -16,6 +16,7 @@ import { notifyPendingReminder, notifyRetreatAdminAdded } from "@/lib/notificati
 import ConfirmButton from "../ConfirmButton";
 import SendRemindersButton from "../SendRemindersButton";
 import ImportProfiles from "./ImportProfiles";
+import EditAttendeeButton from "./EditAttendeeButton";
 import { ensureDefaultAvailability } from "@/lib/availability";
 
 function parseSlotList(value: FormDataEntryValue | null) {
@@ -153,6 +154,28 @@ async function removeUser(formData: FormData) {
   });
   await prisma.availability.deleteMany({ where: { userId, retreatId } });
   await prisma.retreatAttendance.deleteMany({ where: { userId, retreatId } });
+  redirect(`/admin/${retreatId}`);
+}
+
+async function updateAttendeeProfile(retreatId: string, userId: string, formData: FormData) {
+  "use server";
+  await requireAdmin(retreatId);
+  const name = String(formData.get("name") || "").trim();
+  if (!name) redirect(`/admin/${retreatId}`);
+  const field = (key: string) => String(formData.get(key) || "").trim() || null;
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      name,
+      pronouns: field("pronouns"),
+      school: field("school"),
+      bio: field("bio"),
+      canHelpWith: field("canHelpWith"),
+      canBeHelpedWith: field("canBeHelpedWith"),
+      keyCrux: field("keyCrux"),
+      personalLink: field("personalLink"),
+    },
+  });
   redirect(`/admin/${retreatId}`);
 }
 
@@ -408,6 +431,10 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
                     value={st.availability}
                     color="stone"
                     label="open"
+                  />
+                  <EditAttendeeButton
+                    action={updateAttendeeProfile.bind(null, retreatId, a.userId)}
+                    defaults={a.user}
                   />
                   <form action={removeUser}>
                     <input type="hidden" name="userId" value={a.userId} />

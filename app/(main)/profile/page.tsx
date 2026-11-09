@@ -5,6 +5,7 @@ import { getUserRetreats } from "@/lib/config";
 import DeleteButton from "./DeleteButton";
 import SwitchRetreatModal from "./SwitchRetreatModal";
 import SubmitButton from "../SubmitButton";
+import ProfileFieldsFieldset from "../../ProfileFieldsFieldset";
 import { switchRetreat } from "../actions";
 
 async function deleteAccount() {
@@ -23,13 +24,26 @@ async function deleteAccount() {
   redirect("/login");
 }
 
-async function updateName(formData: FormData) {
+async function updateProfile(formData: FormData) {
   "use server";
   const session = await getSession();
   if (!session.userId) redirect("/login");
   const name = String(formData.get("name") || "").trim();
+  const field = (key: string) => String(formData.get(key) || "").trim() || null;
   if (name) {
-    await prisma.user.update({ where: { id: session.userId }, data: { name } });
+    await prisma.user.update({
+      where: { id: session.userId },
+      data: {
+        name,
+        pronouns: field("pronouns"),
+        school: field("school"),
+        bio: field("bio"),
+        canHelpWith: field("canHelpWith"),
+        canBeHelpedWith: field("canBeHelpedWith"),
+        keyCrux: field("keyCrux"),
+        personalLink: field("personalLink"),
+      },
+    });
     session.name = name;
     await session.save();
   }
@@ -40,7 +54,10 @@ export default async function ProfilePage() {
   const s = await getSession();
   if (!s.userId) redirect("/login");
 
-  const retreats = await getUserRetreats(s.userId, s.retreatId);
+  const [retreats, user] = await Promise.all([
+    getUserRetreats(s.userId, s.retreatId),
+    prisma.user.findUnique({ where: { id: s.userId } }),
+  ]);
 
   return (
     <div className="space-y-5 max-w-lg mx-auto">
@@ -48,7 +65,7 @@ export default async function ProfilePage() {
         <h1 className="text-2xl font-bold text-stone-900">Profile</h1>
         <p className="text-sm text-stone-400 mt-0.5">Manage your account settings</p>
       </div>
-      <form action={updateName} className="overflow-hidden rounded-md border border-stone-200 bg-white shadow-sm p-6 space-y-4">
+      <form action={updateProfile} className="overflow-hidden rounded-md border border-stone-200 bg-white shadow-sm p-6 space-y-4">
         <div>
           <label className="block text-sm font-semibold text-stone-700 mb-1.5">Name</label>
           <input
@@ -57,14 +74,7 @@ export default async function ProfilePage() {
             className="w-full border border-stone-200 rounded-md px-3.5 py-2.5 text-sm bg-stone-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500"
           />
         </div>
-        <div>
-          <label className="block text-sm font-semibold text-stone-700 mb-1.5">Email</label>
-          <input
-            disabled
-            value={s.email || ""}
-            className="w-full border border-stone-200 rounded-md px-3.5 py-2.5 text-sm bg-stone-100/50 text-stone-400"
-          />
-        </div>
+        <ProfileFieldsFieldset defaults={user ?? undefined} />
         <SubmitButton pendingChildren="Saving…">Save changes</SubmitButton>
       </form>
 
