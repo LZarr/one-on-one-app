@@ -85,7 +85,8 @@ export default function ImportProfiles({ retreatId }: { retreatId: string }) {
       if (!res.ok) throw new Error("Failed to preview import.");
       const data: Preview = await res.json();
       setPreview(data);
-      setKeep(new Set());
+      // Default to keeping everyone -- removal is opt-in, not opt-out.
+      setKeep(new Set(data.toRemove.map((p) => p.id)));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to preview import.");
     } finally {
@@ -167,15 +168,15 @@ export default function ImportProfiles({ retreatId }: { retreatId: string }) {
             {preview.toRemove.length > 0 && (
               <>
                 ,{" "}
-                <span className="font-semibold text-red-600">{preview.toRemove.length}</span> not in this paste
+                <span className="font-semibold text-amber-700">{preview.toRemove.length}</span> not in this paste
               </>
             )}
           </div>
 
           {preview.toRemove.length > 0 && (
             <div className="space-y-2">
-              <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-md p-2.5 leading-relaxed">
-                These people aren&apos;t in this paste and will be <strong>removed</strong> from the roster unless you check &quot;Keep&quot; next to their name.
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md p-2.5 leading-relaxed">
+                These people aren&apos;t in this paste. They&apos;ll be <strong>kept</strong> by default — uncheck &quot;Keep&quot; next to a name if you want to remove them from the roster.
               </p>
               <div className="rounded-md border border-stone-200 bg-white divide-y divide-stone-100 max-h-56 overflow-y-auto">
                 {preview.toRemove.map((p) => (
