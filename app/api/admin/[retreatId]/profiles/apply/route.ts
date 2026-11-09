@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { isRetreatAdmin } from "@/lib/config";
+import { isRetreatAdmin, generateSlots, getDayHoursMap } from "@/lib/config";
+import { ensureDefaultAvailability } from "@/lib/availability";
 
 const rowSchema = z.object({
   name: z.string().min(1),
@@ -33,10 +34,16 @@ export async function POST(
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "bad input" }, { status: 400 });
 
-  const existing = await prisma.retreatAttendance.findMany({
-    where: { retreatId },
-    include: { user: { select: { id: true, name: true } } },
-  });
+  const [existing, retreat, dayHours] = await Promise.all([
+    prisma.retreatAttendance.findMany({
+      where: { retreatId },
+      include: { user: { select: { id: true, name: true } } },
+    }),
+    prisma.retreat.findUnique({ where: { id: retreatId } }),
+    getDayHoursMap(retreatId),
+  ]);
+  if (!retreat) return NextResponse.json({ error: "retreat not found" }, { status: 404 });
+  const slots = generateSlots(retreat, dayHours);
   const byName = new Map(existing.map((a) => [a.user.name.toLowerCase(), a.user.id]));
 
   for (const { name, ...fields } of parsed.data.rows) {
@@ -46,6 +53,7 @@ export async function POST(
     } else {
       const user = await prisma.user.create({ data: { name, ...fields } });
       await prisma.retreatAttendance.create({ data: { userId: user.id, retreatId } });
+      await ensureDefaultAvailability(user.id, retreatId, slots);
       byName.set(name.toLowerCase(), user.id);
     }
   }

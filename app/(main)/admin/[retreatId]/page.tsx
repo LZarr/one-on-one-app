@@ -16,6 +16,7 @@ import { notifyPendingReminder, notifyRetreatAdminAdded } from "@/lib/notificati
 import ConfirmButton from "../ConfirmButton";
 import SendRemindersButton from "../SendRemindersButton";
 import ImportProfiles from "./ImportProfiles";
+import { ensureDefaultAvailability } from "@/lib/availability";
 
 function parseSlotList(value: FormDataEntryValue | null) {
   return Array.from(new Set(String(value || "").split("\n").map((s) => s.trim()).filter(Boolean))).sort();
@@ -49,9 +50,16 @@ async function addRosterNames(formData: FormData) {
   const existingNames = new Set(existing.map((a) => a.user.name.toLowerCase()));
   const toAdd = names.filter((n) => !existingNames.has(n.toLowerCase()));
 
-  for (const name of toAdd) {
-    const user = await prisma.user.create({ data: { name } });
-    await prisma.retreatAttendance.create({ data: { userId: user.id, retreatId } });
+  if (toAdd.length > 0) {
+    const retreat = await prisma.retreat.findUnique({ where: { id: retreatId } });
+    if (!retreat) redirect(`/admin/${retreatId}`);
+    const dayHours = await getDayHoursMap(retreatId);
+    const slots = generateSlots(retreat, dayHours);
+    for (const name of toAdd) {
+      const user = await prisma.user.create({ data: { name } });
+      await prisma.retreatAttendance.create({ data: { userId: user.id, retreatId } });
+      await ensureDefaultAvailability(user.id, retreatId, slots);
+    }
   }
   redirect(`/admin/${retreatId}`);
 }
