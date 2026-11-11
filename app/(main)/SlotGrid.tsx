@@ -119,7 +119,7 @@ export default function SlotGrid({
   if (tabs) {
     return (
       <div>
-        <div className="flex gap-2 mb-5">
+        <div className="flex gap-2 mb-2.5">
           {days.map((day) => {
             const isActive = day === activeDay;
             return (

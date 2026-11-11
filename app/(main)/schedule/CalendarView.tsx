@@ -51,13 +51,15 @@ function categorizeAgendaItem(title: string): AgendaCategory {
   return "other";
 }
 
+// Deliberately desaturated (grey blended with a hint of hue) rather than Tailwind's
+// built-in pastel shades, which still read as bright/saturated even at low opacity.
 const AGENDA_CATEGORY_STYLES: Record<AgendaCategory, { bg: string; text: string; dot: string; label: string }> = {
-  meal: { bg: "bg-orange-50/70", text: "text-orange-700/90", dot: "bg-orange-300", label: "meals" },
-  talk: { bg: "bg-blue-50/70", text: "text-blue-700/90", dot: "bg-blue-300", label: "talks" },
-  discussion: { bg: "bg-violet-50/70", text: "text-violet-700/90", dot: "bg-violet-300", label: "discussions" },
-  oneOnOne: { bg: "bg-cyan-50/70", text: "text-cyan-700/90", dot: "bg-cyan-300", label: "1:1 slots" },
-  social: { bg: "bg-rose-50/70", text: "text-rose-700/90", dot: "bg-rose-300", label: "social time" },
-  other: { bg: "bg-slate-100/70", text: "text-slate-600", dot: "bg-slate-300", label: "other" },
+  meal: { bg: "bg-[#f1ece6]", text: "text-[#8a7360]", dot: "bg-[#c3ac93]", label: "meals" },
+  talk: { bg: "bg-[#e9edf0]", text: "text-[#5c7085]", dot: "bg-[#a8bbca]", label: "talks" },
+  discussion: { bg: "bg-[#eeeaf0]", text: "text-[#7a6d87]", dot: "bg-[#bcacc9]", label: "discussions" },
+  oneOnOne: { bg: "bg-[#e8edee]", text: "text-[#5a7678]", dot: "bg-[#a4bfc1]", label: "1:1 slots" },
+  social: { bg: "bg-[#f1eaea]", text: "text-[#8a6c6c]", dot: "bg-[#c6a6a6]", label: "social time" },
+  other: { bg: "bg-[#ececea]", text: "text-[#78746c]", dot: "bg-[#c2bdb2]", label: "other" },
 };
 
 export default function CalendarView({
@@ -245,13 +247,17 @@ export default function CalendarView({
     function tintedBlock() {
       const runIsos = getAgendaRunIsos(iso);
       return (
-        <div key={iso} className={`${tint!.bg} rounded-md overflow-hidden`}>
+        <div key={iso} className={tint!.bg}>
           {runIsos.map((runIso, i) => (
-            <div key={runIso} className="flex items-center gap-1 px-1 py-2 text-sm min-h-[36px]">
-              <span className={`text-xs w-16 shrink-0 font-medium ${tint!.text}`}>
+            <div key={runIso} className="flex items-start gap-1 px-1 py-2 text-sm min-h-[36px]">
+              <span className={`text-xs w-16 shrink-0 font-medium pt-px ${tint!.text}`}>
                 {formatSlotTime(new Date(runIso))}
               </span>
-              {i === 0 && <span className={`text-sm font-medium truncate ${tint!.text}`}>{agenda!.label}</span>}
+              {i === 0 && (
+                <span className={`text-sm font-medium min-w-0 flex-1 whitespace-normal leading-snug ${tint!.text}`}>
+                  {agenda!.label}
+                </span>
+              )}
             </div>
           ))}
         </div>
