@@ -52,12 +52,12 @@ function categorizeAgendaItem(title: string): AgendaCategory {
 }
 
 const AGENDA_CATEGORY_STYLES: Record<AgendaCategory, { bg: string; text: string; dot: string; label: string }> = {
-  meal: { bg: "bg-orange-100/80", text: "text-orange-900", dot: "bg-orange-400", label: "meals" },
-  talk: { bg: "bg-blue-100/80", text: "text-blue-900", dot: "bg-blue-400", label: "talks" },
-  discussion: { bg: "bg-violet-100/80", text: "text-violet-900", dot: "bg-violet-400", label: "discussions" },
-  oneOnOne: { bg: "bg-cyan-100/80", text: "text-cyan-900", dot: "bg-cyan-400", label: "1:1 slots" },
-  social: { bg: "bg-rose-100/80", text: "text-rose-900", dot: "bg-rose-400", label: "social time" },
-  other: { bg: "bg-slate-100/80", text: "text-slate-900", dot: "bg-slate-400", label: "other" },
+  meal: { bg: "bg-orange-50/70", text: "text-orange-700/90", dot: "bg-orange-300", label: "meals" },
+  talk: { bg: "bg-blue-50/70", text: "text-blue-700/90", dot: "bg-blue-300", label: "talks" },
+  discussion: { bg: "bg-violet-50/70", text: "text-violet-700/90", dot: "bg-violet-300", label: "discussions" },
+  oneOnOne: { bg: "bg-cyan-50/70", text: "text-cyan-700/90", dot: "bg-cyan-300", label: "1:1 slots" },
+  social: { bg: "bg-rose-50/70", text: "text-rose-700/90", dot: "bg-rose-300", label: "social time" },
+  other: { bg: "bg-slate-100/70", text: "text-slate-600", dot: "bg-slate-300", label: "other" },
 };
 
 export default function CalendarView({
@@ -240,12 +240,10 @@ export default function CalendarView({
 
     if (state.kind === "past") {
       return wrap(
-        <div>
-          <div className={`${flatBase} ${tint ? `${tint.bg} ${tintRoundingCls}` : ""} ${flatHlCls}`}>
-            <span className={`text-xs w-16 shrink-0 font-medium ${tint ? tint.text : "text-stone-300"}`}>{time}</span>
-          </div>
+        <div className={`${flatBase} ${tint ? `${tint.bg} ${tintRoundingCls}` : ""} ${flatHlCls}`}>
+          <span className={`text-xs w-16 shrink-0 font-medium ${tint ? tint.text : "text-stone-300"}`}>{time}</span>
           {tint && agenda!.isStart && (
-            <div className={`text-[11px] ${tint.text} italic px-3 pb-1 opacity-80 truncate`}>{agenda!.label}</div>
+            <span className={`text-xs italic truncate ${tint.text}`}>{agenda!.label}</span>
           )}
         </div>,
       );
@@ -384,47 +382,57 @@ export default function CalendarView({
     }
 
     if (state.kind === "available") {
+      if (showAgenda) {
+        return wrap(
+          <div className={`${flatBase} ${tint ? `${tint.bg} ${tintRoundingCls}` : ""} ${flatHlCls}`}>
+            <span className={`text-xs w-16 shrink-0 font-medium ${tint ? tint.text : "text-stone-300"}`}>{time}</span>
+            {tint && agenda!.isStart && (
+              <span className={`text-xs italic truncate ${tint.text}`}>{agenda!.label}</span>
+            )}
+          </div>,
+        );
+      }
       return wrap(
-        <div>
-          <div className={`${flatBase} ${tint ? `${tint.bg} ${tintRoundingCls}` : "rounded-md hover:bg-stone-50"} ${flatHlCls}`}>
-            <span className={`text-xs w-16 shrink-0 font-medium ${tint ? tint.text : "text-stone-500"}`}>{time}</span>
-            <button
-              onClick={() => router.push(`/attendees?slot=${iso}`)}
-              className={`text-sm truncate flex-1 text-left hover:text-accent-600 cursor-pointer font-medium ${tint ? tint.text : "text-stone-500"}`}
-            >
-              Available
-            </button>
-            <button
-              onClick={() => toggleBlock(iso)}
-              className={`text-xs font-medium shrink-0 pr-2 ${tint ? `${tint.text} opacity-70 hover:opacity-100` : "text-stone-300 hover:text-stone-600"}`}
-            >
-              Block
-            </button>
-          </div>
-          {tint && agenda!.isStart && (
-            <div className={`text-[11px] ${tint.text} italic px-3 pb-1 opacity-80 truncate`}>{agenda!.label}</div>
-          )}
+        <div className={`${flatBase} rounded-md hover:bg-stone-50 ${flatHlCls}`}>
+          <span className="text-xs text-stone-500 w-16 shrink-0 font-medium">{time}</span>
+          <button
+            onClick={() => router.push(`/attendees?slot=${iso}`)}
+            className="text-sm text-stone-500 truncate flex-1 text-left hover:text-accent-600 cursor-pointer font-medium"
+          >
+            Available
+          </button>
+          <button
+            onClick={() => toggleBlock(iso)}
+            className="text-stone-300 text-xs font-medium hover:text-stone-600 shrink-0 pr-2"
+          >
+            Block
+          </button>
         </div>,
       );
     }
 
     const isAdminBlocked = adminBlocked.has(iso);
-    return wrap(
-      <div>
-        <div className={`${flatBase} ${tint ? `${tint.bg} ${tintRoundingCls}` : "rounded-md hover:bg-stone-50"} ${flatHlCls}`}>
+    if (showAgenda) {
+      return wrap(
+        <div className={`${flatBase} ${tint ? `${tint.bg} ${tintRoundingCls}` : ""} ${flatHlCls}`}>
           <span className={`text-xs w-16 shrink-0 font-medium ${tint ? tint.text : "text-stone-300"}`}>{time}</span>
-          <span className={`text-sm flex-1 ${tint ? tint.text : "text-stone-300"}`}>{isAdminBlocked ? "Blocked by admin" : "Blocked"}</span>
-          {!isAdminBlocked && (
-            <button
-              onClick={() => toggleBlock(iso)}
-              className={`text-xs font-medium shrink-0 pr-2 ${tint ? `${tint.text} opacity-70 hover:opacity-100` : "text-stone-300 hover:text-stone-600"}`}
-            >
-              Unblock
-            </button>
+          {tint && agenda!.isStart && (
+            <span className={`text-xs italic truncate ${tint.text}`}>{agenda!.label}</span>
           )}
-        </div>
-        {tint && agenda!.isStart && (
-          <div className={`text-[11px] ${tint.text} italic px-3 pb-1 opacity-80 truncate`}>{agenda!.label}</div>
+        </div>,
+      );
+    }
+    return wrap(
+      <div className={`${flatBase} rounded-md hover:bg-stone-50 ${flatHlCls}`}>
+        <span className="text-xs text-stone-300 w-16 shrink-0 font-medium">{time}</span>
+        <span className="text-sm text-stone-300 flex-1">{isAdminBlocked ? "Blocked by admin" : "Blocked"}</span>
+        {!isAdminBlocked && (
+          <button
+            onClick={() => toggleBlock(iso)}
+            className="text-stone-300 text-xs font-medium hover:text-stone-600 shrink-0 pr-2"
+          >
+            Unblock
+          </button>
         )}
       </div>,
     );
