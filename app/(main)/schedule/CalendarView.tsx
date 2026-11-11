@@ -259,7 +259,7 @@ export default function CalendarView({
     function tintedBlock() {
       const runIsos = getAgendaRunIsos(iso);
       return (
-        <div key={iso} className={tint!.bg}>
+        <div key={iso} className={`${tint!.bg} rounded-md overflow-hidden`}>
           {runIsos.map((runIso, i) => (
             <div key={runIso} className="flex items-center gap-1 px-1 py-2 text-sm min-h-[36px]">
               <span className={`text-xs w-16 shrink-0 font-medium ${tint!.text}`}>
