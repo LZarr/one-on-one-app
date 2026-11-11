@@ -127,6 +127,24 @@ export default function CalendarView({
     return info;
   }, [groups, agendaRanges]);
 
+  // Collects every slot (by iso) belonging to the same contiguous agenda run as
+  // `startIso`, so a run can be rendered as one merged block instead of N separate
+  // rows glued together with CSS.
+  function getAgendaRunIsos(startIso: string): string[] {
+    const dateKey = startIso.slice(0, 10);
+    const dayIsos = groups[dateKey] ?? [];
+    const idx = dayIsos.indexOf(startIso);
+    if (idx === -1) return [startIso];
+    const key = agendaRunInfo[startIso]?.key;
+    const run = [startIso];
+    for (let i = idx + 1; i < dayIsos.length; i++) {
+      const info = agendaRunInfo[dayIsos[i]];
+      if (!info || info.isStart || info.key !== key) break;
+      run.push(dayIsos[i]);
+    }
+    return run;
+  }
+
   const usedAgendaCategories = useMemo(
     () => Array.from(new Set(agendaRanges.map((a) => a.category))),
     [agendaRanges],
@@ -209,7 +227,7 @@ export default function CalendarView({
 
     const base =
       "flex items-center gap-2 pl-3 pr-0 py-0 rounded-md border text-sm overflow-hidden min-h-[36px]";
-    const flatBase = "flex items-center gap-2 px-1 py-2 text-sm min-h-[36px]";
+    const flatBase = "flex items-center gap-1 px-1 py-2 text-sm min-h-[36px]";
     const hlCls = isHighlighted
       ? "ring-2 ring-amber-400/60 border-amber-300 bg-amber-50/40"
       : "";
@@ -220,15 +238,32 @@ export default function CalendarView({
     // continuous block with its neighbors in the same agenda run.
     const canTintRow = state.kind === "past" || state.kind === "available" || state.kind === "blocked";
     const tint = canTintRow && agenda ? AGENDA_CATEGORY_STYLES[agenda.category] : null;
-    const outerCls = tint && !agenda!.isStart ? "!mt-0" : "";
-    const tintRoundingCls = tint ? `${agenda!.isStart ? "rounded-t-md" : "rounded-none"} ${agenda!.isEnd ? "rounded-b-md" : ""}` : "";
+
+    // Continuation slot of an already-rendered merged block: nothing to draw here.
+    if (tint && !agenda!.isStart) return null;
+
+    function tintedBlock() {
+      const runIsos = getAgendaRunIsos(iso);
+      return (
+        <div key={iso} className={`${tint!.bg} rounded-md overflow-hidden`}>
+          {runIsos.map((runIso, i) => (
+            <div key={runIso} className="flex items-center gap-1 px-1 py-2 text-sm min-h-[36px]">
+              <span className={`text-xs w-16 shrink-0 font-medium ${tint!.text}`}>
+                {formatSlotTime(new Date(runIso))}
+              </span>
+              {i === 0 && <span className={`text-sm font-medium truncate ${tint!.text}`}>{agenda!.label}</span>}
+            </div>
+          ))}
+        </div>
+      );
+    }
 
     // A live meeting (confirmed/incoming/outgoing) keeps its own semantic color; it
     // only gets a small caption for context, shown once at the start of the block.
     const caption = !canTintRow && agenda?.isStart ? agenda.label : null;
 
     const wrap = (row: ReactNode) => (
-      <div key={iso} className={outerCls}>
+      <div key={iso}>
         {row}
         {caption && (
           <div className="text-[11px] text-stone-400 italic pl-3 pt-0.5 pb-1.5 truncate">
@@ -239,12 +274,10 @@ export default function CalendarView({
     );
 
     if (state.kind === "past") {
+      if (tint) return tintedBlock();
       return wrap(
-        <div className={`${flatBase} ${tint ? `${tint.bg} ${tintRoundingCls}` : ""} ${flatHlCls}`}>
-          <span className={`text-xs w-16 shrink-0 font-medium ${tint ? tint.text : "text-stone-300"}`}>{time}</span>
-          {tint && agenda!.isStart && (
-            <span className={`text-xs italic truncate ${tint.text}`}>{agenda!.label}</span>
-          )}
+        <div className={`${flatBase} ${flatHlCls}`}>
+          <span className="text-xs text-stone-300 w-16 shrink-0 font-medium">{time}</span>
         </div>,
       );
     }
@@ -383,12 +416,10 @@ export default function CalendarView({
 
     if (state.kind === "available") {
       if (showAgenda) {
+        if (tint) return tintedBlock();
         return wrap(
-          <div className={`${flatBase} ${tint ? `${tint.bg} ${tintRoundingCls}` : ""} ${flatHlCls}`}>
-            <span className={`text-xs w-16 shrink-0 font-medium ${tint ? tint.text : "text-stone-300"}`}>{time}</span>
-            {tint && agenda!.isStart && (
-              <span className={`text-xs italic truncate ${tint.text}`}>{agenda!.label}</span>
-            )}
+          <div className={`${flatBase} ${flatHlCls}`}>
+            <span className="text-xs text-stone-300 w-16 shrink-0 font-medium">{time}</span>
           </div>,
         );
       }
@@ -413,12 +444,10 @@ export default function CalendarView({
 
     const isAdminBlocked = adminBlocked.has(iso);
     if (showAgenda) {
+      if (tint) return tintedBlock();
       return wrap(
-        <div className={`${flatBase} ${tint ? `${tint.bg} ${tintRoundingCls}` : ""} ${flatHlCls}`}>
-          <span className={`text-xs w-16 shrink-0 font-medium ${tint ? tint.text : "text-stone-300"}`}>{time}</span>
-          {tint && agenda!.isStart && (
-            <span className={`text-xs italic truncate ${tint.text}`}>{agenda!.label}</span>
-          )}
+        <div className={`${flatBase} ${flatHlCls}`}>
+          <span className="text-xs text-stone-300 w-16 shrink-0 font-medium">{time}</span>
         </div>,
       );
     }
