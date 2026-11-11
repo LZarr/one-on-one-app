@@ -39,27 +39,25 @@ type SlotState =
   | { kind: "blocked" }
   | { kind: "past" };
 
-type AgendaCategory = "meal" | "talk" | "discussion" | "oneOnOne" | "social" | "other";
+type AgendaCategory = "talk" | "meal" | "oneOnOne" | "other";
 
 function categorizeAgendaItem(title: string): AgendaCategory {
   const t = title.toLowerCase();
   if (/breakfast|lunch|dinner/.test(t)) return "meal";
-  if (/talk|debate/.test(t)) return "talk";
-  if (/discussion/.test(t)) return "discussion";
   if (/1:1/.test(t)) return "oneOnOne";
-  if (/social time/.test(t)) return "social";
+  if (/talk|debate|opening session|closing session|reflection session|saturday night announcement/.test(t)) {
+    return "talk";
+  }
   return "other";
 }
 
-// Custom desaturated colors (grey blended with a hint of hue) rather than Tailwind's
-// built-in pastel shades, which read as too bright/saturated even at low opacity.
+// All four categories are shades of blue, varying in lightness/saturation rather
+// than hue, per request.
 const AGENDA_CATEGORY_STYLES: Record<AgendaCategory, { bg: string; text: string; dot: string; label: string }> = {
-  meal: { bg: "bg-[#f6e9d8]", text: "text-[#7a5a38]", dot: "bg-[#d9a86b]", label: "meals" },
-  talk: { bg: "bg-[#dde6ee]", text: "text-[#3f5a73]", dot: "bg-[#7fa3c2]", label: "talks" },
-  discussion: { bg: "bg-[#e6ddee]", text: "text-[#5f4a73]", dot: "bg-[#a98bc2]", label: "discussions" },
-  oneOnOne: { bg: "bg-[#d9e8ea]", text: "text-[#3f6668]", dot: "bg-[#7bb0b3]", label: "1:1 slots" },
-  social: { bg: "bg-[#f3dfe1]", text: "text-[#7a4a52]", dot: "bg-[#d394a0]", label: "social time" },
-  other: { bg: "bg-[#e6e3dc]", text: "text-[#5f5a4e]", dot: "bg-[#b0a996]", label: "other" },
+  talk: { bg: "bg-[#e1e5ea]", text: "text-[#55626e]", dot: "bg-[#a7b4bf]", label: "talks & sessions" },
+  meal: { bg: "bg-[#d9ecf8]", text: "text-[#3a6f91]", dot: "bg-[#86bcd9]", label: "meals" },
+  oneOnOne: { bg: "bg-[#cfe0f2]", text: "text-[#2c587e]", dot: "bg-[#6ea0c9]", label: "1:1 slots" },
+  other: { bg: "bg-[#dadff0]", text: "text-[#46528a]", dot: "bg-[#8793c7]", label: "other" },
 };
 
 // Keep a long talk's row to one line: fall back to "Talk: <speaker>" when the full
