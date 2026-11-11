@@ -2,35 +2,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { formatSlotDay, formatSlotTime } from "@/lib/format";
+import Avatar from "../../Avatar";
 
-type Attendee = { id: string; name: string; email: string | null; school: string | null };
-
-const AVATAR_COLORS = [
-  "bg-accent-500",
-  "bg-emerald-600",
-  "bg-amber-600",
-  "bg-rose-600",
-  "bg-stone-600",
-  "bg-cyan-600",
-  "bg-orange-600",
-  "bg-violet-600",
-];
-
-function getAvatarColor(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
-
-function getInitials(name: string) {
-  return name
-    .split(" ")
-    .map((w) => w[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
+type Attendee = { id: string; name: string; email: string | null; school: string | null; photoUrl: string | null };
 
 export default function AttendeeList({
   attendees,
@@ -86,9 +60,7 @@ export default function AttendeeList({
               href={slotFilter ? `/attendees/${a.id}?slot=${encodeURIComponent(slotFilter)}` : `/attendees/${a.id}`}
               className="flex items-center gap-3 p-4 hover:bg-accent-50/40 group"
             >
-              <div className={`w-9 h-9 rounded-md ${getAvatarColor(a.name)} flex items-center justify-center text-white text-xs font-bold shrink-0`}>
-                {getInitials(a.name)}
-              </div>
+              <Avatar name={a.name} photoUrl={a.photoUrl} size={36} />
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-sm text-stone-900 group-hover:text-accent-600">{a.name}</div>
                 <div className="text-xs text-stone-400 truncate">{a.email || a.school}</div>

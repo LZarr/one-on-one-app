@@ -6,6 +6,7 @@ import DeleteButton from "./DeleteButton";
 import SwitchRetreatModal from "./SwitchRetreatModal";
 import SubmitButton from "../SubmitButton";
 import ProfileFieldsFieldset from "../../ProfileFieldsFieldset";
+import Avatar from "../../Avatar";
 import { switchRetreat } from "../actions";
 
 async function deleteAccount() {
@@ -61,9 +62,12 @@ export default async function ProfilePage() {
 
   return (
     <div className="space-y-5 max-w-lg mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-stone-900">Profile</h1>
-        <p className="text-sm text-stone-400 mt-0.5">Manage your account settings</p>
+      <div className="mb-6 flex items-center gap-3">
+        {user && <Avatar name={user.name} photoUrl={user.photoUrl} size={48} />}
+        <div>
+          <h1 className="text-2xl font-bold text-stone-900">Profile</h1>
+          <p className="text-sm text-stone-400 mt-0.5">Manage your account settings</p>
+        </div>
       </div>
       <form action={updateProfile} className="overflow-hidden rounded-md border border-stone-200 bg-white shadow-sm p-6 space-y-4">
         <div>

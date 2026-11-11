@@ -32,14 +32,17 @@ export default async function AttendPage({
   const retreat = await getRetreat(retreatId);
   if (!retreat) notFound();
 
+  const session = await getSession();
+  if (session.userId && session.retreatId === retreatId) redirect("/schedule");
+
   const attendances = await prisma.retreatAttendance.findMany({
     where: { retreatId },
-    include: { user: { select: { id: true, name: true, superAdmin: true } } },
+    include: { user: { select: { id: true, name: true, photoUrl: true, superAdmin: true } } },
     orderBy: { user: { name: "asc" } },
   });
   const people = attendances
     .filter((a) => !a.user.superAdmin)
-    .map((a) => ({ id: a.user.id, name: a.user.name }));
+    .map((a) => ({ id: a.user.id, name: a.user.name, photoUrl: a.user.photoUrl }));
   const action = selectAttendee.bind(null, retreatId);
 
   return (

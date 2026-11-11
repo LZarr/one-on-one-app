@@ -1,5 +1,5 @@
 "use client";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { formatSlotTime, formatSlotDay } from "@/lib/format";
 
 type SlotGridProps = {
@@ -9,6 +9,8 @@ type SlotGridProps = {
   renderSlot: (iso: string, opts: { isHighlighted: boolean; isPast: boolean }) => ReactNode;
   filterSlot?: (iso: string) => boolean;
   emptyDayMessage?: string;
+  /** Render a single day at a time, switchable via tab buttons, instead of side-by-side columns / accordion. */
+  tabs?: boolean;
 };
 
 function NowBar() {
@@ -89,6 +91,7 @@ export default function SlotGrid({
   renderSlot,
   filterSlot,
   emptyDayMessage,
+  tabs = false,
 }: SlotGridProps) {
   const nowMs = new Date(now).getTime();
   const highlighted = new Set(highlightedSlots);
@@ -109,6 +112,37 @@ export default function SlotGrid({
     filterSlot,
     emptyDayMessage,
   });
+
+  const [selectedDay, setSelectedDay] = useState(firstNonPastDay);
+  const activeDay = days.includes(selectedDay) ? selectedDay : firstNonPastDay;
+
+  if (tabs) {
+    return (
+      <div>
+        <div className="flex gap-2 mb-5">
+          {days.map((day) => {
+            const isActive = day === activeDay;
+            return (
+              <button
+                key={day}
+                onClick={() => setSelectedDay(day)}
+                className={`flex-1 py-2.5 rounded-md text-sm font-semibold transition-colors ${
+                  isActive
+                    ? "bg-teal-800 text-white"
+                    : "bg-white border border-stone-300 text-stone-700 hover:bg-stone-50"
+                }`}
+              >
+                {formatSlotDay(new Date(day))}
+              </button>
+            );
+          })}
+        </div>
+        <div className="space-y-1">
+          <DayColumn {...columnProps(activeDay)} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

@@ -128,14 +128,16 @@ export default function CalendarView({
 
     const base =
       "flex items-center gap-2 pl-3 pr-0 py-0 rounded-md border text-sm overflow-hidden min-h-[36px]";
+    const flatBase = "flex items-center gap-2 px-1 py-2 text-sm min-h-[36px]";
     const hlCls = isHighlighted
       ? "ring-2 ring-amber-400/60 border-amber-300 bg-amber-50/40"
       : "";
+    const flatHlCls = isHighlighted ? "ring-2 ring-amber-400/40 rounded-md bg-amber-50/40" : "";
 
     if (state.kind === "past") {
       return (
-        <div key={iso} className={`${base} opacity-60 border-stone-100 bg-stone-50 ${hlCls}`}>
-          <span className="text-xs text-stone-400 w-16 shrink-0 font-medium">{time}</span>
+        <div key={iso} className={`${flatBase} ${flatHlCls}`}>
+          <span className="text-xs text-stone-300 w-16 shrink-0 font-medium">{time}</span>
         </div>
       );
     }
@@ -274,40 +276,36 @@ export default function CalendarView({
 
     if (state.kind === "available") {
       return (
-        <div key={iso} className={`${base} border-stone-200 bg-white hover:border-accent-200 hover:bg-accent-50 ${hlCls}`}>
-          <span className="text-xs text-stone-600 w-16 shrink-0 font-medium">{time}</span>
+        <div key={iso} className={`${flatBase} rounded-md hover:bg-stone-50 ${flatHlCls}`}>
+          <span className="text-xs text-stone-500 w-16 shrink-0 font-medium">{time}</span>
           <button
             onClick={() => router.push(`/attendees?slot=${iso}`)}
             className="text-sm text-stone-500 truncate flex-1 text-left hover:text-accent-600 cursor-pointer font-medium"
           >
-            Available &rarr;
+            Available
           </button>
-          <div className="flex self-stretch shrink-0 w-[72px] border-l border-stone-200">
-            <button
-              onClick={() => toggleBlock(iso)}
-              className="self-stretch flex-1 text-stone-400 text-xs font-medium hover:bg-stone-100 hover:text-stone-600"
-            >
-              Block
-            </button>
-          </div>
+          <button
+            onClick={() => toggleBlock(iso)}
+            className="text-stone-300 text-xs font-medium hover:text-stone-600 shrink-0 pr-2"
+          >
+            Block
+          </button>
         </div>
       );
     }
 
     const isAdminBlocked = adminBlocked.has(iso);
     return (
-      <div key={iso} className={`${base} border-stone-200 bg-stone-50 ${hlCls}`}>
-        <span className="text-xs text-stone-400 w-16 shrink-0 font-medium">{time}</span>
-        <span className="text-sm text-stone-400 flex-1">{isAdminBlocked ? "Blocked by admin" : "Blocked"}</span>
+      <div key={iso} className={`${flatBase} rounded-md hover:bg-stone-50 ${flatHlCls}`}>
+        <span className="text-xs text-stone-300 w-16 shrink-0 font-medium">{time}</span>
+        <span className="text-sm text-stone-300 flex-1">{isAdminBlocked ? "Blocked by admin" : "Blocked"}</span>
         {!isAdminBlocked && (
-          <div className="flex self-stretch shrink-0 w-[72px] border-l border-stone-200">
-            <button
-              onClick={() => toggleBlock(iso)}
-              className="self-stretch flex-1 text-stone-500 text-xs font-medium hover:bg-stone-100 hover:text-stone-700"
-            >
-              Unblock
-            </button>
-          </div>
+          <button
+            onClick={() => toggleBlock(iso)}
+            className="text-stone-300 text-xs font-medium hover:text-stone-600 shrink-0 pr-2"
+          >
+            Unblock
+          </button>
         )}
       </div>
     );
@@ -361,6 +359,7 @@ export default function CalendarView({
         now={now}
         highlightedSlots={highlightedSlots}
         renderSlot={renderSlot}
+        tabs
       />
 
       {modalOpen && (

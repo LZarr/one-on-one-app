@@ -16,6 +16,7 @@ model User {
   pronouns        String?
   school          String?
   bio             String?
+  photoUrl        String?  @db.Text
   canHelpWith     String?
   canBeHelpedWith String?
   keyCrux         String?

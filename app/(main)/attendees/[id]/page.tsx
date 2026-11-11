@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getRetreat, generateSlots, groupSlotsByDay, nowInRetreatTz, getDayHoursMap } from "@/lib/config";
 import { getMyAvailability } from "@/lib/availability";
 import OverlapGrid from "./OverlapGrid";
+import Avatar from "../../../Avatar";
 
 export default async function AttendeeProfile({
   params,
@@ -72,11 +73,16 @@ export default async function AttendeeProfile({
         </svg>
         All attendees
       </Link>
-      <h1 className="text-2xl font-bold text-stone-900">
-        {user.name}
-        {user.pronouns && <span className="text-base font-normal text-stone-400 ml-2">{user.pronouns}</span>}
-      </h1>
-      {user.school && <p className="text-sm text-stone-500 mt-0.5">{user.school}</p>}
+      <div className="flex items-center gap-3">
+        <Avatar name={user.name} photoUrl={user.photoUrl} size={52} />
+        <div>
+          <h1 className="text-2xl font-bold text-stone-900">
+            {user.name}
+            {user.pronouns && <span className="text-base font-normal text-stone-400 ml-2">{user.pronouns}</span>}
+          </h1>
+          {user.school && <p className="text-sm text-stone-500 mt-0.5">{user.school}</p>}
+        </div>
+      </div>
 
       {(user.bio || user.canHelpWith || user.canBeHelpedWith || user.keyCrux || user.personalLink) && (
         <details className="group mt-4 mb-6 rounded-md border border-stone-200 bg-white shadow-sm overflow-hidden">
