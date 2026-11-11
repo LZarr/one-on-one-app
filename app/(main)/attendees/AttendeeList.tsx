@@ -45,8 +45,7 @@ export default function AttendeeList({
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search by name or email..."
-          autoFocus
+          placeholder="Search by name..."
           className="w-full border border-stone-200 rounded-md pl-10 pr-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-accent-500/20 focus:border-accent-500"
         />
       </div>

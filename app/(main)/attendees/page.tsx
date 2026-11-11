@@ -57,9 +57,6 @@ export default async function AttendeesPage({
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-stone-900">Attendees</h1>
-        <p className="text-sm text-stone-400 mt-0.5">
-          {others.length} {others.length === 1 ? "person" : "people"} at this retreat
-        </p>
       </div>
       <AttendeeList attendees={others} slotFilter={slot} />
     </div>
