@@ -241,7 +241,7 @@ export default function CalendarView({
 
     const base =
       "flex items-center gap-2 pl-3 pr-0 py-0 rounded-md border text-sm overflow-hidden min-h-[36px]";
-    const flatBase = "flex items-center gap-1 px-1 py-2 text-sm min-h-[36px]";
+    const flatBase = "flex items-center gap-1 px-1 py-1 text-sm min-h-[26px]";
     const hlCls = isHighlighted
       ? "ring-2 ring-amber-400/60 border-amber-300 bg-amber-50/40"
       : "";
@@ -261,7 +261,7 @@ export default function CalendarView({
       return (
         <div key={iso} className={`${tint!.bg} rounded-md overflow-hidden`}>
           {runIsos.map((runIso, i) => (
-            <div key={runIso} className="flex items-center gap-1 px-1 py-2 text-sm min-h-[36px]">
+            <div key={runIso} className="flex items-center gap-1 px-1 py-1 text-sm min-h-[26px]">
               <span className={`text-xs w-16 shrink-0 font-medium ${tint!.text}`}>
                 {formatSlotTime(new Date(runIso))}
               </span>
