@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { formatSlotTime, formatSlotDay } from "@/lib/format";
 import SlotGrid from "../SlotGrid";
@@ -13,12 +13,21 @@ type SlotMeeting = {
   message: string | null;
 };
 
+type AgendaItem = {
+  date: string;
+  startTime: string;
+  endTime: string;
+  title: string;
+  subtitle: string | null;
+};
+
 type Props = {
   groups: Record<string, string[]>;
   availableSlots: string[];
   slotMeetings: Record<string, SlotMeeting>;
   highlightedSlots: string[];
   blockedSlots: string[];
+  agendaItems: AgendaItem[];
   now: string;
 };
 
@@ -36,6 +45,7 @@ export default function CalendarView({
   slotMeetings: initialSlotMeetings,
   highlightedSlots,
   blockedSlots,
+  agendaItems,
   now,
 }: Props) {
   const router = useRouter();
@@ -49,7 +59,25 @@ export default function CalendarView({
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState<string | null>(null);
   const [showPendingModal, setShowPendingModal] = useState(false);
+  const [showAgenda, setShowAgenda] = useState(false);
   const adminBlocked = new Set(blockedSlots);
+
+  const agendaRanges = useMemo(
+    () =>
+      agendaItems.map((a) => ({
+        startMs: new Date(`${a.date}T${a.startTime}:00Z`).getTime(),
+        endMs: new Date(`${a.date}T${a.endTime}:00Z`).getTime(),
+        label: a.subtitle ? `${a.title} (${a.subtitle})` : a.title,
+      })),
+    [agendaItems],
+  );
+
+  function agendaLabel(iso: string): string | null {
+    const slotMs = new Date(iso).getTime();
+    const matches = agendaRanges.filter((a) => slotMs >= a.startMs && slotMs < a.endMs);
+    if (matches.length === 0) return null;
+    return matches.map((a) => a.label).join(" · ");
+  }
 
   const incomingRequests = Object.entries(meetings)
     .filter(
@@ -134,22 +162,34 @@ export default function CalendarView({
       : "";
     const flatHlCls = isHighlighted ? "ring-2 ring-amber-400/40 rounded-md bg-amber-50/40" : "";
 
+    const label = showAgenda ? agendaLabel(iso) : null;
+    const wrap = (row: ReactNode) => (
+      <div key={iso}>
+        {row}
+        {label && (
+          <div className="text-[11px] text-stone-400 italic pl-3 pt-0.5 pb-1.5 truncate">
+            {label}
+          </div>
+        )}
+      </div>
+    );
+
     if (state.kind === "past") {
-      return (
-        <div key={iso} className={`${flatBase} ${flatHlCls}`}>
+      return wrap(
+        <div className={`${flatBase} ${flatHlCls}`}>
           <span className="text-xs text-stone-300 w-16 shrink-0 font-medium">{time}</span>
-        </div>
+        </div>,
       );
     }
 
     if ((state.kind === "incoming" || state.kind === "outgoing") && state.isPast) {
-      return (
-        <div key={iso} className={`${base} border-stone-200 bg-stone-50/60 opacity-90 ${hlCls}`}>
+      return wrap(
+        <div className={`${base} border-stone-200 bg-stone-50/60 opacity-90 ${hlCls}`}>
           <span className="text-xs text-stone-400 w-16 shrink-0 font-medium">{time}</span>
           <div className="w-2 h-2 rounded-full bg-stone-300 shrink-0" />
           <span className="text-sm text-stone-500 truncate flex-1">{state.meeting.otherPersonName}</span>
           <span className="text-[11px] text-stone-400 shrink-0 italic pr-3">missed</span>
-        </div>
+        </div>,
       );
     }
 
@@ -161,8 +201,8 @@ export default function CalendarView({
       const timeCls = assigned ? "text-stone-600" : "text-emerald-700";
       const nameCls = assigned ? "text-stone-700" : "text-emerald-900";
       const borderCls = assigned ? "border-stone-200" : "border-emerald-200";
-      return (
-        <div key={iso} className={`${base} ${colorCls} ${hlCls} ${pastCls}`}>
+      return wrap(
+        <div className={`${base} ${colorCls} ${hlCls} ${pastCls}`}>
           <span className={`text-xs ${timeCls} w-16 shrink-0 font-semibold`}>{time}</span>
           <div className={`w-2 h-2 rounded-full ${dotCls} shrink-0`} />
           <span className={`text-sm font-medium ${nameCls} truncate flex-1`}>
@@ -195,13 +235,13 @@ export default function CalendarView({
               </button>
             </div>
           )}
-        </div>
+        </div>,
       );
     }
 
     if (state.kind === "incoming") {
-      return (
-        <div key={iso} className={`${base} border-amber-200 bg-amber-50 ${hlCls}`}>
+      return wrap(
+        <div className={`${base} border-amber-200 bg-amber-50 ${hlCls}`}>
           <span className="text-xs text-amber-700 w-16 shrink-0 font-semibold">{time}</span>
           <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
           <span className="text-sm font-medium text-amber-900 truncate flex-1">
@@ -235,13 +275,13 @@ export default function CalendarView({
               Decline
             </button>
           </div>
-        </div>
+        </div>,
       );
     }
 
     if (state.kind === "outgoing") {
-      return (
-        <div key={iso} className={`${base} border-stone-200 bg-white ${hlCls}`}>
+      return wrap(
+        <div className={`${base} border-stone-200 bg-white ${hlCls}`}>
           <span className="text-xs text-stone-500 w-16 shrink-0 font-medium">{time}</span>
           <div className="w-2 h-2 rounded-full bg-stone-300 shrink-0" />
           <span className="text-sm font-medium text-stone-600 truncate flex-1">{state.meeting.otherPersonName}</span>
@@ -270,13 +310,13 @@ export default function CalendarView({
               {confirmingCancel === state.meeting.requestId ? "Sure?" : "Cancel"}
             </button>
           </div>
-        </div>
+        </div>,
       );
     }
 
     if (state.kind === "available") {
-      return (
-        <div key={iso} className={`${flatBase} rounded-md hover:bg-stone-50 ${flatHlCls}`}>
+      return wrap(
+        <div className={`${flatBase} rounded-md hover:bg-stone-50 ${flatHlCls}`}>
           <span className="text-xs text-stone-500 w-16 shrink-0 font-medium">{time}</span>
           <button
             onClick={() => router.push(`/attendees?slot=${iso}`)}
@@ -290,13 +330,13 @@ export default function CalendarView({
           >
             Block
           </button>
-        </div>
+        </div>,
       );
     }
 
     const isAdminBlocked = adminBlocked.has(iso);
-    return (
-      <div key={iso} className={`${flatBase} rounded-md hover:bg-stone-50 ${flatHlCls}`}>
+    return wrap(
+      <div className={`${flatBase} rounded-md hover:bg-stone-50 ${flatHlCls}`}>
         <span className="text-xs text-stone-300 w-16 shrink-0 font-medium">{time}</span>
         <span className="text-sm text-stone-300 flex-1">{isAdminBlocked ? "Blocked by admin" : "Blocked"}</span>
         {!isAdminBlocked && (
@@ -307,7 +347,7 @@ export default function CalendarView({
             Unblock
           </button>
         )}
-      </div>
+      </div>,
     );
   }
 
@@ -330,11 +370,22 @@ export default function CalendarView({
         </button>
       )}
 
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-stone-900">Your Schedule</h1>
           <p className="text-sm text-stone-400 mt-0.5">Manage your availability and meetings</p>
         </div>
+        {agendaItems.length > 0 && (
+          <label className="flex items-center gap-2 text-sm font-medium text-stone-600 border border-stone-200 rounded-md px-3 py-2 cursor-pointer hover:bg-stone-50 shrink-0">
+            <input
+              type="checkbox"
+              checked={showAgenda}
+              onChange={(e) => setShowAgenda(e.target.checked)}
+              className="rounded border-stone-300"
+            />
+            Show retreat schedule
+          </label>
+        )}
       </div>
 
       <div className="text-xs text-stone-400 flex flex-wrap gap-4 mb-5 pb-4 border-b border-stone-200/60">

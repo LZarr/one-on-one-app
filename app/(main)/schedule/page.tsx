@@ -21,7 +21,7 @@ export default async function SchedulePage() {
   const groups = groupSlotsByDay(slots);
   await ensureDefaultAvailability(s.userId, s.retreatId, visibleSlots);
 
-  const [mine, allRequests] = await Promise.all([
+  const [mine, allRequests, agendaItems] = await Promise.all([
     getMyAvailability(s.userId, s.retreatId),
     prisma.meetingRequest.findMany({
       where: {
@@ -34,6 +34,11 @@ export default async function SchedulePage() {
         to: { select: { id: true, name: true, email: true } },
       },
       orderBy: { slotStart: "asc" },
+    }),
+    prisma.agendaItem.findMany({
+      where: { retreatId: s.retreatId },
+      select: { date: true, startTime: true, endTime: true, title: true, subtitle: true },
+      orderBy: [{ date: "asc" }, { startTime: "asc" }],
     }),
   ]);
 
@@ -84,6 +89,7 @@ export default async function SchedulePage() {
         slotMeetings={slotMeetings}
         highlightedSlots={retreat.highlightedSlots ?? []}
         blockedSlots={retreat.blockedSlots ?? []}
+        agendaItems={agendaItems}
         now={nowInRetreatTz(retreat).toISOString()}
       />
     </>

@@ -435,7 +435,7 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
         <BulkAssignMeetings retreatId={retreatId} slotGroups={visibleSlotGroups} />
       </Section>
 
-      <Section title="Event agenda" subtitle="the official schedule, shown on the Agenda tab" count={agendaItems.length}>
+      <Section title="Event agenda" subtitle="the official schedule, shown as an overlay on the Schedule tab" count={agendaItems.length}>
         <form action={saveAgenda} className="space-y-2">
           <input type="hidden" name="retreatId" value={retreatId} />
           <p className="text-xs text-stone-500 leading-relaxed">
