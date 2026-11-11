@@ -150,6 +150,11 @@ export default function CalendarView({
     startTransition(() => router.refresh());
   }
 
+  // Tracks the previous slot's agenda label so the caption only appears once at the
+  // start of each agenda block instead of repeating on every slot it spans. Reset
+  // fresh on every render; mutated in time order as SlotGrid calls renderSlot.
+  let lastAgendaLabel: string | null = null;
+
   function renderSlot(iso: string, { isHighlighted }: { isHighlighted: boolean; isPast: boolean }) {
     const state = classify(iso);
     const time = formatSlotTime(new Date(iso));
@@ -162,7 +167,9 @@ export default function CalendarView({
       : "";
     const flatHlCls = isHighlighted ? "ring-2 ring-amber-400/40 rounded-md bg-amber-50/40" : "";
 
-    const label = showAgenda ? agendaLabel(iso) : null;
+    const rawAgendaLabel = showAgenda ? agendaLabel(iso) : null;
+    const label = rawAgendaLabel !== lastAgendaLabel ? rawAgendaLabel : null;
+    lastAgendaLabel = rawAgendaLabel;
     const wrap = (row: ReactNode) => (
       <div key={iso}>
         {row}
