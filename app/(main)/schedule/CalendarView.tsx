@@ -51,16 +51,28 @@ function categorizeAgendaItem(title: string): AgendaCategory {
   return "other";
 }
 
-// Deliberately desaturated (grey blended with a hint of hue) rather than Tailwind's
-// built-in pastel shades, which still read as bright/saturated even at low opacity.
+// Custom desaturated colors (grey blended with a hint of hue) rather than Tailwind's
+// built-in pastel shades, which read as too bright/saturated even at low opacity.
 const AGENDA_CATEGORY_STYLES: Record<AgendaCategory, { bg: string; text: string; dot: string; label: string }> = {
-  meal: { bg: "bg-[#f1ece6]", text: "text-[#8a7360]", dot: "bg-[#c3ac93]", label: "meals" },
-  talk: { bg: "bg-[#e9edf0]", text: "text-[#5c7085]", dot: "bg-[#a8bbca]", label: "talks" },
-  discussion: { bg: "bg-[#eeeaf0]", text: "text-[#7a6d87]", dot: "bg-[#bcacc9]", label: "discussions" },
-  oneOnOne: { bg: "bg-[#e8edee]", text: "text-[#5a7678]", dot: "bg-[#a4bfc1]", label: "1:1 slots" },
-  social: { bg: "bg-[#f1eaea]", text: "text-[#8a6c6c]", dot: "bg-[#c6a6a6]", label: "social time" },
-  other: { bg: "bg-[#ececea]", text: "text-[#78746c]", dot: "bg-[#c2bdb2]", label: "other" },
+  meal: { bg: "bg-[#f6e9d8]", text: "text-[#7a5a38]", dot: "bg-[#d9a86b]", label: "meals" },
+  talk: { bg: "bg-[#dde6ee]", text: "text-[#3f5a73]", dot: "bg-[#7fa3c2]", label: "talks" },
+  discussion: { bg: "bg-[#e6ddee]", text: "text-[#5f4a73]", dot: "bg-[#a98bc2]", label: "discussions" },
+  oneOnOne: { bg: "bg-[#d9e8ea]", text: "text-[#3f6668]", dot: "bg-[#7bb0b3]", label: "1:1 slots" },
+  social: { bg: "bg-[#f3dfe1]", text: "text-[#7a4a52]", dot: "bg-[#d394a0]", label: "social time" },
+  other: { bg: "bg-[#e6e3dc]", text: "text-[#5f5a4e]", dot: "bg-[#b0a996]", label: "other" },
 };
+
+// Keep a long talk's row to one line: fall back to "Talk: <speaker>" when the full
+// title + speaker wouldn't fit, rather than letting the block grow taller to wrap.
+const FULL_LABEL_MAX_CHARS = 42;
+
+function agendaItemLabel(title: string, subtitle: string | null): string {
+  const full = subtitle ? `${title} (${subtitle})` : title;
+  if (full.length > FULL_LABEL_MAX_CHARS && subtitle && /^talk:/i.test(title)) {
+    return `Talk: ${subtitle}`;
+  }
+  return full;
+}
 
 export default function CalendarView({
   groups,
@@ -91,7 +103,7 @@ export default function CalendarView({
         key: `${a.date}T${a.startTime}-${a.title}-${i}`,
         startMs: new Date(`${a.date}T${a.startTime}:00Z`).getTime(),
         endMs: new Date(`${a.date}T${a.endTime}:00Z`).getTime(),
-        label: a.subtitle ? `${a.title} (${a.subtitle})` : a.title,
+        label: agendaItemLabel(a.title, a.subtitle),
         category: categorizeAgendaItem(a.title),
       })),
     [agendaItems],
@@ -249,12 +261,12 @@ export default function CalendarView({
       return (
         <div key={iso} className={tint!.bg}>
           {runIsos.map((runIso, i) => (
-            <div key={runIso} className="flex items-start gap-1 px-1 py-2 text-sm min-h-[36px]">
-              <span className={`text-xs w-16 shrink-0 font-medium pt-px ${tint!.text}`}>
+            <div key={runIso} className="flex items-center gap-1 px-1 py-2 text-sm min-h-[36px]">
+              <span className={`text-xs w-16 shrink-0 font-medium ${tint!.text}`}>
                 {formatSlotTime(new Date(runIso))}
               </span>
               {i === 0 && (
-                <span className={`text-sm font-medium min-w-0 flex-1 whitespace-normal leading-snug ${tint!.text}`}>
+                <span className={`text-sm font-medium min-w-0 flex-1 truncate ${tint!.text}`}>
                   {agenda!.label}
                 </span>
               )}
