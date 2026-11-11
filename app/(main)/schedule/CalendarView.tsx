@@ -39,6 +39,27 @@ type SlotState =
   | { kind: "blocked" }
   | { kind: "past" };
 
+type AgendaCategory = "meal" | "talk" | "discussion" | "oneOnOne" | "social" | "other";
+
+function categorizeAgendaItem(title: string): AgendaCategory {
+  const t = title.toLowerCase();
+  if (/breakfast|lunch|dinner/.test(t)) return "meal";
+  if (/talk|debate/.test(t)) return "talk";
+  if (/discussion/.test(t)) return "discussion";
+  if (/1:1/.test(t)) return "oneOnOne";
+  if (/social time/.test(t)) return "social";
+  return "other";
+}
+
+const AGENDA_CATEGORY_STYLES: Record<AgendaCategory, { bg: string; text: string; dot: string; label: string }> = {
+  meal: { bg: "bg-orange-100/80", text: "text-orange-900", dot: "bg-orange-400", label: "meals" },
+  talk: { bg: "bg-blue-100/80", text: "text-blue-900", dot: "bg-blue-400", label: "talks" },
+  discussion: { bg: "bg-violet-100/80", text: "text-violet-900", dot: "bg-violet-400", label: "discussions" },
+  oneOnOne: { bg: "bg-cyan-100/80", text: "text-cyan-900", dot: "bg-cyan-400", label: "1:1 slots" },
+  social: { bg: "bg-rose-100/80", text: "text-rose-900", dot: "bg-rose-400", label: "social time" },
+  other: { bg: "bg-slate-100/80", text: "text-slate-900", dot: "bg-slate-400", label: "other" },
+};
+
 export default function CalendarView({
   groups,
   availableSlots,
@@ -64,20 +85,52 @@ export default function CalendarView({
 
   const agendaRanges = useMemo(
     () =>
-      agendaItems.map((a) => ({
+      agendaItems.map((a, i) => ({
+        key: `${a.date}T${a.startTime}-${a.title}-${i}`,
         startMs: new Date(`${a.date}T${a.startTime}:00Z`).getTime(),
         endMs: new Date(`${a.date}T${a.endTime}:00Z`).getTime(),
         label: a.subtitle ? `${a.title} (${a.subtitle})` : a.title,
+        category: categorizeAgendaItem(a.title),
       })),
     [agendaItems],
   );
 
-  function agendaLabel(iso: string): string | null {
-    const slotMs = new Date(iso).getTime();
-    const matches = agendaRanges.filter((a) => slotMs >= a.startMs && slotMs < a.endMs);
-    if (matches.length === 0) return null;
-    return matches.map((a) => a.label).join(" · ");
-  }
+  // Precompute, per slot, which agenda block covers it and whether this slot is the
+  // first/last in that block's contiguous run — so the overlay can render one merged
+  // colored block per event instead of repeating a tint on every slot it spans.
+  const agendaRunInfo = useMemo(() => {
+    const info: Record<
+      string,
+      { key: string; label: string; category: AgendaCategory; isStart: boolean; isEnd: boolean }
+    > = {};
+    for (const isos of Object.values(groups)) {
+      const matchKeys: (string | null)[] = isos.map((iso) => {
+        const slotMs = new Date(iso).getTime();
+        const matches = agendaRanges.filter((a) => slotMs >= a.startMs && slotMs < a.endMs);
+        if (matches.length === 0) return null;
+        info[iso] = {
+          key: matches.map((m) => m.key).join("+"),
+          label: matches.map((m) => m.label).join(" · "),
+          category: matches[0].category,
+          isStart: false,
+          isEnd: false,
+        };
+        return info[iso].key;
+      });
+      for (let i = 0; i < isos.length; i++) {
+        const key = matchKeys[i];
+        if (key === null) continue;
+        info[isos[i]].isStart = key !== matchKeys[i - 1];
+        info[isos[i]].isEnd = key !== matchKeys[i + 1];
+      }
+    }
+    return info;
+  }, [groups, agendaRanges]);
+
+  const usedAgendaCategories = useMemo(
+    () => Array.from(new Set(agendaRanges.map((a) => a.category))),
+    [agendaRanges],
+  );
 
   const incomingRequests = Object.entries(meetings)
     .filter(
@@ -150,11 +203,6 @@ export default function CalendarView({
     startTransition(() => router.refresh());
   }
 
-  // Tracks the previous slot's agenda label so the caption only appears once at the
-  // start of each agenda block instead of repeating on every slot it spans. Reset
-  // fresh on every render; mutated in time order as SlotGrid calls renderSlot.
-  let lastAgendaLabel: string | null = null;
-
   function renderSlot(iso: string, { isHighlighted }: { isHighlighted: boolean; isPast: boolean }) {
     const state = classify(iso);
     const time = formatSlotTime(new Date(iso));
@@ -167,15 +215,24 @@ export default function CalendarView({
       : "";
     const flatHlCls = isHighlighted ? "ring-2 ring-amber-400/40 rounded-md bg-amber-50/40" : "";
 
-    const rawAgendaLabel = showAgenda ? agendaLabel(iso) : null;
-    const label = rawAgendaLabel !== lastAgendaLabel ? rawAgendaLabel : null;
-    lastAgendaLabel = rawAgendaLabel;
+    const agenda = showAgenda ? agendaRunInfo[iso] : undefined;
+    // No live meeting on this slot: the whole row can be tinted and merged into one
+    // continuous block with its neighbors in the same agenda run.
+    const canTintRow = state.kind === "past" || state.kind === "available" || state.kind === "blocked";
+    const tint = canTintRow && agenda ? AGENDA_CATEGORY_STYLES[agenda.category] : null;
+    const outerCls = tint && !agenda!.isStart ? "!mt-0" : "";
+    const tintRoundingCls = tint ? `${agenda!.isStart ? "rounded-t-md" : "rounded-none"} ${agenda!.isEnd ? "rounded-b-md" : ""}` : "";
+
+    // A live meeting (confirmed/incoming/outgoing) keeps its own semantic color; it
+    // only gets a small caption for context, shown once at the start of the block.
+    const caption = !canTintRow && agenda?.isStart ? agenda.label : null;
+
     const wrap = (row: ReactNode) => (
-      <div key={iso}>
+      <div key={iso} className={outerCls}>
         {row}
-        {label && (
+        {caption && (
           <div className="text-[11px] text-stone-400 italic pl-3 pt-0.5 pb-1.5 truncate">
-            {label}
+            {caption}
           </div>
         )}
       </div>
@@ -183,8 +240,13 @@ export default function CalendarView({
 
     if (state.kind === "past") {
       return wrap(
-        <div className={`${flatBase} ${flatHlCls}`}>
-          <span className="text-xs text-stone-300 w-16 shrink-0 font-medium">{time}</span>
+        <div>
+          <div className={`${flatBase} ${tint ? `${tint.bg} ${tintRoundingCls}` : ""} ${flatHlCls}`}>
+            <span className={`text-xs w-16 shrink-0 font-medium ${tint ? tint.text : "text-stone-300"}`}>{time}</span>
+          </div>
+          {tint && agenda!.isStart && (
+            <div className={`text-[11px] ${tint.text} italic px-3 pb-1 opacity-80 truncate`}>{agenda!.label}</div>
+          )}
         </div>,
       );
     }
@@ -323,36 +385,46 @@ export default function CalendarView({
 
     if (state.kind === "available") {
       return wrap(
-        <div className={`${flatBase} rounded-md hover:bg-stone-50 ${flatHlCls}`}>
-          <span className="text-xs text-stone-500 w-16 shrink-0 font-medium">{time}</span>
-          <button
-            onClick={() => router.push(`/attendees?slot=${iso}`)}
-            className="text-sm text-stone-500 truncate flex-1 text-left hover:text-accent-600 cursor-pointer font-medium"
-          >
-            Available
-          </button>
-          <button
-            onClick={() => toggleBlock(iso)}
-            className="text-stone-300 text-xs font-medium hover:text-stone-600 shrink-0 pr-2"
-          >
-            Block
-          </button>
+        <div>
+          <div className={`${flatBase} ${tint ? `${tint.bg} ${tintRoundingCls}` : "rounded-md hover:bg-stone-50"} ${flatHlCls}`}>
+            <span className={`text-xs w-16 shrink-0 font-medium ${tint ? tint.text : "text-stone-500"}`}>{time}</span>
+            <button
+              onClick={() => router.push(`/attendees?slot=${iso}`)}
+              className={`text-sm truncate flex-1 text-left hover:text-accent-600 cursor-pointer font-medium ${tint ? tint.text : "text-stone-500"}`}
+            >
+              Available
+            </button>
+            <button
+              onClick={() => toggleBlock(iso)}
+              className={`text-xs font-medium shrink-0 pr-2 ${tint ? `${tint.text} opacity-70 hover:opacity-100` : "text-stone-300 hover:text-stone-600"}`}
+            >
+              Block
+            </button>
+          </div>
+          {tint && agenda!.isStart && (
+            <div className={`text-[11px] ${tint.text} italic px-3 pb-1 opacity-80 truncate`}>{agenda!.label}</div>
+          )}
         </div>,
       );
     }
 
     const isAdminBlocked = adminBlocked.has(iso);
     return wrap(
-      <div className={`${flatBase} rounded-md hover:bg-stone-50 ${flatHlCls}`}>
-        <span className="text-xs text-stone-300 w-16 shrink-0 font-medium">{time}</span>
-        <span className="text-sm text-stone-300 flex-1">{isAdminBlocked ? "Blocked by admin" : "Blocked"}</span>
-        {!isAdminBlocked && (
-          <button
-            onClick={() => toggleBlock(iso)}
-            className="text-stone-300 text-xs font-medium hover:text-stone-600 shrink-0 pr-2"
-          >
-            Unblock
-          </button>
+      <div>
+        <div className={`${flatBase} ${tint ? `${tint.bg} ${tintRoundingCls}` : "rounded-md hover:bg-stone-50"} ${flatHlCls}`}>
+          <span className={`text-xs w-16 shrink-0 font-medium ${tint ? tint.text : "text-stone-300"}`}>{time}</span>
+          <span className={`text-sm flex-1 ${tint ? tint.text : "text-stone-300"}`}>{isAdminBlocked ? "Blocked by admin" : "Blocked"}</span>
+          {!isAdminBlocked && (
+            <button
+              onClick={() => toggleBlock(iso)}
+              className={`text-xs font-medium shrink-0 pr-2 ${tint ? `${tint.text} opacity-70 hover:opacity-100` : "text-stone-300 hover:text-stone-600"}`}
+            >
+              Unblock
+            </button>
+          )}
+        </div>
+        {tint && agenda!.isStart && (
+          <div className={`text-[11px] ${tint.text} italic px-3 pb-1 opacity-80 truncate`}>{agenda!.label}</div>
         )}
       </div>,
     );
@@ -410,6 +482,13 @@ export default function CalendarView({
             designated 1:1 time
           </span>
         )}
+        {showAgenda &&
+          usedAgendaCategories.map((cat) => (
+            <span key={cat} className="flex items-center gap-2">
+              <span className={`inline-block w-3 h-3 rounded ${AGENDA_CATEGORY_STYLES[cat].dot}`} />
+              {AGENDA_CATEGORY_STYLES[cat].label}
+            </span>
+          ))}
       </div>
 
       <SlotGrid
