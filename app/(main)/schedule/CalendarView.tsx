@@ -39,25 +39,21 @@ type SlotState =
   | { kind: "blocked" }
   | { kind: "past" };
 
-type AgendaCategory = "talk" | "meal" | "oneOnOne" | "other";
+type AgendaCategory = "meal" | "oneOnOne" | "talk" | "evening";
 
 function categorizeAgendaItem(title: string): AgendaCategory {
   const t = title.toLowerCase();
   if (/breakfast|lunch|dinner/.test(t)) return "meal";
   if (/1:1/.test(t)) return "oneOnOne";
-  if (/talk|debate|opening session|closing session|reflection session|saturday night announcement/.test(t)) {
-    return "talk";
-  }
-  return "other";
+  if (/reflection session|closing session|saturday night announcement|social time/.test(t)) return "evening";
+  return "talk";
 }
 
-// All four categories are shades of blue, varying in lightness/saturation rather
-// than hue, per request.
 const AGENDA_CATEGORY_STYLES: Record<AgendaCategory, { bg: string; text: string; dot: string; label: string }> = {
-  talk: { bg: "bg-[#e1e5ea]", text: "text-[#55626e]", dot: "bg-[#a7b4bf]", label: "talks & sessions" },
-  meal: { bg: "bg-[#d9ecf8]", text: "text-[#3a6f91]", dot: "bg-[#86bcd9]", label: "meals" },
-  oneOnOne: { bg: "bg-[#cfe0f2]", text: "text-[#2c587e]", dot: "bg-[#6ea0c9]", label: "1:1 slots" },
-  other: { bg: "bg-[#dadff0]", text: "text-[#46528a]", dot: "bg-[#8793c7]", label: "other" },
+  meal: { bg: "bg-[#E6F4F3]", text: "text-[#3c6b67]", dot: "bg-[#E6F4F3]", label: "dinner / meal" },
+  oneOnOne: { bg: "bg-[#BCE0E3]", text: "text-[#1f5457]", dot: "bg-[#BCE0E3]", label: "1:1 prep & slots" },
+  talk: { bg: "bg-[#83B8BC]", text: "text-[#1f4345]", dot: "bg-[#83B8BC]", label: "talks & day sessions" },
+  evening: { bg: "bg-[#4C8284]", text: "text-white", dot: "bg-[#4C8284]", label: "evening sessions & social time" },
 };
 
 // Keep a long talk's row to one line: fall back to "Talk: <speaker>" when the full
@@ -538,7 +534,7 @@ export default function CalendarView({
         {showAgenda &&
           usedAgendaCategories.map((cat) => (
             <span key={cat} className="flex items-center gap-2">
-              <span className={`inline-block w-3 h-3 rounded ${AGENDA_CATEGORY_STYLES[cat].dot}`} />
+              <span className={`inline-block w-3 h-3 rounded border border-black/10 ${AGENDA_CATEGORY_STYLES[cat].dot}`} />
               {AGENDA_CATEGORY_STYLES[cat].label}
             </span>
           ))}
