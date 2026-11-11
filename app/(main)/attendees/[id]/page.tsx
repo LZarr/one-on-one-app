@@ -74,7 +74,7 @@ export default async function AttendeeProfile({
         All attendees
       </Link>
       <div className="flex items-center gap-3">
-        <Avatar name={user.name} photoUrl={user.photoUrl} size={52} />
+        <Avatar name={user.name} userId={user.id} size={52} />
         <div>
           <h1 className="text-2xl font-bold text-stone-900">
             {user.name}

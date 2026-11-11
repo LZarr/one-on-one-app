@@ -1,3 +1,6 @@
+"use client";
+import { useState } from "react";
+
 const AVATAR_COLORS = [
   "bg-accent-500",
   "bg-emerald-600",
@@ -27,21 +30,25 @@ function getInitials(name: string) {
 
 export default function Avatar({
   name,
-  photoUrl,
+  userId,
   size = 36,
 }: {
   name: string;
-  photoUrl?: string | null;
+  userId?: string | null;
   size?: number;
 }) {
-  if (photoUrl) {
-    // eslint-disable-next-line @next/next/no-img-element
+  const [errored, setErrored] = useState(false);
+
+  if (userId && !errored) {
     return (
+      // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={photoUrl}
+        src={`/api/users/${userId}/photo`}
         alt={name}
         width={size}
         height={size}
+        loading="lazy"
+        onError={() => setErrored(true)}
         className="rounded-full object-cover shrink-0"
         style={{ width: size, height: size }}
       />

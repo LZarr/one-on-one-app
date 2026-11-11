@@ -63,7 +63,7 @@ export default async function ProfilePage() {
   return (
     <div className="space-y-5 max-w-lg mx-auto">
       <div className="mb-6 flex items-center gap-3">
-        {user && <Avatar name={user.name} photoUrl={user.photoUrl} size={48} />}
+        {user && <Avatar name={user.name} userId={user.id} size={48} />}
         <div>
           <h1 className="text-2xl font-bold text-stone-900">Profile</h1>
           <p className="text-sm text-stone-400 mt-0.5">Manage your account settings</p>

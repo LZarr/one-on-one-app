@@ -37,12 +37,12 @@ export default async function AttendPage({
 
   const attendances = await prisma.retreatAttendance.findMany({
     where: { retreatId },
-    include: { user: { select: { id: true, name: true, photoUrl: true, superAdmin: true } } },
+    include: { user: { select: { id: true, name: true, superAdmin: true } } },
     orderBy: { user: { name: "asc" } },
   });
   const people = attendances
     .filter((a) => !a.user.superAdmin)
-    .map((a) => ({ id: a.user.id, name: a.user.name, photoUrl: a.user.photoUrl }));
+    .map((a) => ({ id: a.user.id, name: a.user.name }));
   const action = selectAttendee.bind(null, retreatId);
 
   return (
