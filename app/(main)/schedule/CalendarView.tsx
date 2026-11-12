@@ -48,10 +48,10 @@ function categorizeAgendaItem(title: string): AgendaCategory {
   return "other";
 }
 
-const AGENDA_CATEGORY_STYLES: Record<AgendaCategory, { bg: string; text: string; dot: string; label: string }> = {
-  meal: { bg: "bg-[#E6F4F3]", text: "text-[#3c6b67]", dot: "bg-[#E6F4F3]", label: "meals & social time" },
-  oneOnOne: { bg: "bg-[#BCE0E3]", text: "text-[#1f5457]", dot: "bg-[#BCE0E3]", label: "1:1 prep & slots" },
-  other: { bg: "bg-[#A8CED1]", text: "text-[#1f4345]", dot: "bg-[#A8CED1]", label: "everything else" },
+const AGENDA_CATEGORY_STYLES: Record<AgendaCategory, { bg: string; text: string }> = {
+  meal: { bg: "bg-[#E6F4F3]", text: "text-[#3c6b67]" },
+  oneOnOne: { bg: "bg-[#BCE0E3]", text: "text-[#1f5457]" },
+  other: { bg: "bg-[#A8CED1]", text: "text-[#1f4345]" },
 };
 
 // Keep a long talk's row to one line: fall back to "Talk: <speaker>" when the full
@@ -178,11 +178,6 @@ export default function CalendarView({
     return run;
   }
 
-  const usedAgendaCategories = useMemo(
-    () => Array.from(new Set(agendaRanges.map((a) => a.category))),
-    [agendaRanges],
-  );
-
   const incomingRequests = Object.entries(meetings)
     .filter(
       ([iso, m]) => m.type === "incoming" && new Date(iso).getTime() >= nowMs,
@@ -259,9 +254,13 @@ export default function CalendarView({
     const time = formatSlotTime(new Date(iso));
 
     // Continuation of a multi-slot 1:1 already rendered as part of its start
-    // slot's merged block — nothing to draw here.
+    // slot's merged block — nothing to draw here. When the overlay is showing,
+    // confirmed meetings are tinted/merged via the agenda run instead, so skip
+    // this for them and let that path handle continuation.
     if (
-      (state.kind === "confirmed" || state.kind === "incoming" || state.kind === "outgoing") &&
+      ((state.kind === "confirmed" && !showAgenda) ||
+        state.kind === "incoming" ||
+        state.kind === "outgoing") &&
       isMeetingContinuation(iso)
     ) {
       return null;
@@ -276,15 +275,20 @@ export default function CalendarView({
     const flatHlCls = isHighlighted ? "ring-2 ring-amber-400/40 rounded-md bg-amber-50/40" : "";
 
     const agenda = showAgenda ? agendaRunInfo[iso] : undefined;
-    // No live meeting on this slot: the whole row can be tinted and merged into one
-    // continuous block with its neighbors in the same agenda run.
-    const canTintRow = state.kind === "past" || state.kind === "available" || state.kind === "blocked";
+    // No live meeting on this slot (or it's a confirmed one, while the overlay is
+    // showing): the row can be tinted and merged into one continuous block with
+    // its neighbors in the same agenda run.
+    const canTintRow =
+      state.kind === "past" ||
+      state.kind === "available" ||
+      state.kind === "blocked" ||
+      (state.kind === "confirmed" && showAgenda);
     const tint = canTintRow && agenda ? AGENDA_CATEGORY_STYLES[agenda.category] : null;
 
     // Continuation slot of an already-rendered merged block: nothing to draw here.
     if (tint && !agenda!.isStart) return null;
 
-    function tintedBlock() {
+    function tintedBlock(meetingChip?: ReactNode) {
       const runIsos = getAgendaRunIsos(iso);
       return (
         <div key={iso} className={`${tint!.bg} rounded-md overflow-hidden`}>
@@ -298,6 +302,7 @@ export default function CalendarView({
                   {agenda!.label}
                 </span>
               )}
+              {i === 0 && meetingChip}
             </div>
           ))}
         </div>
@@ -343,6 +348,24 @@ export default function CalendarView({
               <span className="w-16 shrink-0 font-medium">{formatSlotTime(new Date(runIso))}</span>
             </div>
           ))}
+        </div>,
+      );
+    }
+
+    if (state.kind === "confirmed" && showAgenda) {
+      // In the retreat-schedule overlay, a confirmed 1:1 shouldn't take over the
+      // whole row — just a small name tag on the side, so the printed schedule
+      // stays the main thing you're looking at.
+      const chip = (
+        <span className="ml-1 text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 max-w-[40%] truncate bg-emerald-500 text-white">
+          {state.meeting.otherPersonName}
+        </span>
+      );
+      if (tint) return tintedBlock(chip);
+      return wrap(
+        <div className={`${flatBase} ${flatHlCls} justify-between ${state.isPast ? "opacity-60" : ""}`}>
+          <span className="text-xs text-stone-500 w-16 shrink-0 font-medium">{time}</span>
+          {chip}
         </div>,
       );
     }
@@ -597,13 +620,6 @@ export default function CalendarView({
             designated 1:1 time
           </span>
         )}
-        {showAgenda &&
-          usedAgendaCategories.map((cat) => (
-            <span key={cat} className="flex items-center gap-2">
-              <span className={`inline-block w-3 h-3 rounded border border-black/10 ${AGENDA_CATEGORY_STYLES[cat].dot}`} />
-              {AGENDA_CATEGORY_STYLES[cat].label}
-            </span>
-          ))}
       </div>
 
       <SlotGrid

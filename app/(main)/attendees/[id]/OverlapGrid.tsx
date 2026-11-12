@@ -23,6 +23,7 @@ type Props = {
   betweenUs: BetweenUsRequest[];
   highlightedSlots?: string[];
   blockedSlots?: string[];
+  meetingSlotCount?: number;
   now: string;
   preselectedSlot?: string;
 };
@@ -46,6 +47,7 @@ export default function OverlapGrid({
   betweenUs,
   highlightedSlots = [],
   blockedSlots = [],
+  meetingSlotCount = 1,
   now,
   preselectedSlot,
 }: Props) {
@@ -133,7 +135,27 @@ export default function OverlapGrid({
     }
     if (myBookedSet.has(iso) || theirBookedSet.has(iso)) return "booked";
     if (blockedSet.has(iso)) return "none";
-    if (mineSet.has(iso) && theirsSet.has(iso)) return "available";
+    if (mineSet.has(iso) && theirsSet.has(iso)) {
+      // A 1:1 always runs the full meeting duration, which can span more than
+      // one base-grid slot. Only offer this slot if every slot it would occupy
+      // is also free for both people — otherwise the request would just fail.
+      if (meetingSlotCount > 1) {
+        const dateKey = iso.slice(0, 10);
+        const dayIsos = groups[dateKey] ?? [];
+        const idx = dayIsos.indexOf(iso);
+        for (let i = 1; i < meetingSlotCount; i++) {
+          const nextIso = dayIsos[idx + i];
+          if (!nextIso) return "none";
+          const nextMs = new Date(nextIso).getTime();
+          if (nextMs < nowMs + bufferMs) return "none";
+          if (betweenUsMap[nextIso]) return "none";
+          if (myBookedSet.has(nextIso) || theirBookedSet.has(nextIso)) return "none";
+          if (blockedSet.has(nextIso)) return "none";
+          if (!mineSet.has(nextIso) || !theirsSet.has(nextIso)) return "none";
+        }
+      }
+      return "available";
+    }
     return "none";
   }
 
