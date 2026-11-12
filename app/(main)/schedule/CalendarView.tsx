@@ -487,6 +487,9 @@ export default function CalendarView({
             const edgeCls = `${c.continuesFromPrev ? "rounded-t-none border-t-0" : "rounded-t-md"} ${
               c.continuesToNext ? "rounded-b-none border-b-0" : "rounded-b-md"
             }`;
+            // A continuation half is visually part of the same pill as the
+            // segment before it — show the name (and any actions) only once,
+            // on the first segment, instead of repeating them on every half.
             if (c.isPast) {
               const past =
                 c.kind === "confirmed"
@@ -498,8 +501,12 @@ export default function CalendarView({
                   style={posStyle}
                   className={`flex items-center justify-center gap-1.5 px-2.5 border w-1/3 ${edgeCls} ${past.cls}`}
                 >
-                  <span className={`w-2 h-2 rounded-full ${past.dot} shrink-0`} />
-                  <span className={`text-sm font-medium ${past.text} ${nameWrapCls} text-center`}>{c.name}</span>
+                  {!c.continuesFromPrev && (
+                    <>
+                      <span className={`w-2 h-2 rounded-full ${past.dot} shrink-0`} />
+                      <span className={`text-sm font-medium ${past.text} ${nameWrapCls} text-center`}>{c.name}</span>
+                    </>
+                  )}
                 </div>
               );
             }
@@ -510,21 +517,27 @@ export default function CalendarView({
                   style={posStyle}
                   className={`flex items-center border border-amber-200 bg-amber-50 w-1/2 overflow-hidden ${edgeCls}`}
                 >
-                  <span className={`text-sm font-medium text-amber-900 ${nameWrapCls} flex-1 px-2`}>{c.name}</span>
-                  <button
-                    onClick={() => act(c.requestId, "accept", c.startIso)}
-                    disabled={busy === c.requestId}
-                    className="self-stretch px-2 text-sm font-semibold text-emerald-600 hover:bg-emerald-100 disabled:opacity-50"
-                  >
-                    Accept
-                  </button>
-                  <button
-                    onClick={() => act(c.requestId, "decline", c.startIso)}
-                    disabled={busy === c.requestId}
-                    className="self-stretch px-2 text-sm font-medium text-stone-400 border-l border-amber-200 hover:bg-stone-100 disabled:opacity-50"
-                  >
-                    Decline
-                  </button>
+                  {c.continuesFromPrev ? (
+                    <span className="flex-1" />
+                  ) : (
+                    <>
+                      <span className={`text-sm font-medium text-amber-900 ${nameWrapCls} flex-1 px-2`}>{c.name}</span>
+                      <button
+                        onClick={() => act(c.requestId, "accept", c.startIso)}
+                        disabled={busy === c.requestId}
+                        className="self-stretch px-2 text-sm font-semibold text-emerald-600 hover:bg-emerald-100 disabled:opacity-50"
+                      >
+                        Accept
+                      </button>
+                      <button
+                        onClick={() => act(c.requestId, "decline", c.startIso)}
+                        disabled={busy === c.requestId}
+                        className="self-stretch px-2 text-sm font-medium text-stone-400 border-l border-amber-200 hover:bg-stone-100 disabled:opacity-50"
+                      >
+                        Decline
+                      </button>
+                    </>
+                  )}
                 </div>
               );
             }
@@ -566,10 +579,12 @@ export default function CalendarView({
                 {confirming ? (
                   <span className="text-sm font-semibold text-stone-800">Cancel?</span>
                 ) : (
-                  <>
-                    <span className={`w-2 h-2 rounded-full ${live.dot} shrink-0`} />
-                    <span className={`text-sm font-medium ${live.text} ${nameWrapCls} text-center`}>{c.name}</span>
-                  </>
+                  !c.continuesFromPrev && (
+                    <>
+                      <span className={`w-2 h-2 rounded-full ${live.dot} shrink-0`} />
+                      <span className={`text-sm font-medium ${live.text} ${nameWrapCls} text-center`}>{c.name}</span>
+                    </>
+                  )
                 )}
               </button>
             );
