@@ -46,10 +46,10 @@ export default async function AttendPage({
   const action = selectAttendee.bind(null, retreatId);
 
   return (
-    <div className="min-h-screen bg-stone-50 flex items-center justify-center px-4 py-10">
+    <div className="min-h-screen bg-stone-50 flex justify-center px-4 pt-8 pb-10 sm:pt-16">
       <div className="w-full max-w-md">
-        <div className="text-center mb-6">
-          <div className="mx-auto mb-4 flex justify-center">
+        <div className="text-center mb-5">
+          <div className="mx-auto mb-3 flex justify-center">
             <BrandMark size="lg" />
           </div>
           <h1 className="text-2xl font-bold text-stone-900">{retreat.name}</h1>
