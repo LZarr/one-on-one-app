@@ -408,6 +408,10 @@ export default function CalendarView({
           })}
           {chips.map((c, i) => {
             const posStyle = { position: "absolute" as const, top: c.top + 3, height: c.height - 6, right: 4 };
+            // Only let the name wrap to a second line when the chip actually
+            // has room for it (spans 2+ rows) — a 1-row chip is too short for
+            // two lines and the overflow just bleeds into the row below it.
+            const nameWrapCls = c.height >= 2 * ROW_H - 6 ? "line-clamp-2 leading-tight" : "truncate";
             if (c.isPast) {
               const past =
                 c.kind === "confirmed"
@@ -420,7 +424,7 @@ export default function CalendarView({
                   className={`flex items-center justify-center gap-1.5 px-2.5 rounded-md border w-1/3 ${past.cls}`}
                 >
                   <span className={`w-2 h-2 rounded-full ${past.dot} shrink-0`} />
-                  <span className={`text-sm font-medium ${past.text} line-clamp-2 leading-tight text-center`}>{c.name}</span>
+                  <span className={`text-sm font-medium ${past.text} ${nameWrapCls} text-center`}>{c.name}</span>
                 </div>
               );
             }
@@ -431,7 +435,7 @@ export default function CalendarView({
                   style={posStyle}
                   className="flex items-center rounded-md border border-amber-200 bg-amber-50 w-1/2 overflow-hidden"
                 >
-                  <span className="text-sm font-medium text-amber-900 line-clamp-2 leading-tight flex-1 px-2">{c.name}</span>
+                  <span className={`text-sm font-medium text-amber-900 ${nameWrapCls} flex-1 px-2`}>{c.name}</span>
                   <button
                     onClick={() => act(c.requestId, "accept", c.startIso)}
                     disabled={busy === c.requestId}
@@ -489,7 +493,7 @@ export default function CalendarView({
                 ) : (
                   <>
                     <span className={`w-2 h-2 rounded-full ${live.dot} shrink-0`} />
-                    <span className={`text-sm font-medium ${live.text} line-clamp-2 leading-tight text-center`}>{c.name}</span>
+                    <span className={`text-sm font-medium ${live.text} ${nameWrapCls} text-center`}>{c.name}</span>
                   </>
                 )}
               </button>
@@ -564,11 +568,12 @@ export default function CalendarView({
             const confirming = confirmingCancel === requestId;
             const posStyle = { position: "absolute" as const, top: 3, height: runIsos.length * 26 - 6, right: 4 };
             const clsBase = "flex items-center justify-center gap-1.5 px-2.5 rounded-md border w-1/3";
+            const nameWrapCls = runIsos.length >= 2 ? "line-clamp-2 leading-tight" : "truncate";
             if (state.isPast) {
               return (
                 <div style={posStyle} className={`${clsBase} border-emerald-200 bg-emerald-50`}>
                   <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                  <span className="text-sm font-medium text-emerald-900 line-clamp-2 leading-tight text-center">{state.meeting.otherPersonName}</span>
+                  <span className={`text-sm font-medium text-emerald-900 ${nameWrapCls} text-center`}>{state.meeting.otherPersonName}</span>
                 </div>
               );
             }
@@ -596,7 +601,7 @@ export default function CalendarView({
                 ) : (
                   <>
                     <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                    <span className="text-sm font-medium text-emerald-900 line-clamp-2 leading-tight text-center">{state.meeting.otherPersonName}</span>
+                    <span className={`text-sm font-medium text-emerald-900 ${nameWrapCls} text-center`}>{state.meeting.otherPersonName}</span>
                   </>
                 )}
               </button>
@@ -625,6 +630,7 @@ export default function CalendarView({
             const requestId = state.meeting.requestId;
             const confirming = confirmingCancel === requestId;
             const posStyle = { position: "absolute" as const, top: 3, height: runIsos.length * 26 - 6, right: 4 };
+            const nameWrapCls = runIsos.length >= 2 ? "line-clamp-2 leading-tight" : "truncate";
             return (
               <button
                 style={posStyle}
@@ -649,7 +655,7 @@ export default function CalendarView({
                 ) : (
                   <>
                     <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-                    <span className="text-sm font-medium text-amber-900 line-clamp-2 leading-tight text-center">{state.meeting.otherPersonName}</span>
+                    <span className={`text-sm font-medium text-amber-900 ${nameWrapCls} text-center`}>{state.meeting.otherPersonName}</span>
                   </>
                 )}
               </button>
@@ -678,7 +684,11 @@ export default function CalendarView({
             style={{ position: "absolute", top: 3, height: runIsos.length * 26 - 6, right: 4 }}
             className="flex items-center rounded-md border border-amber-200 bg-amber-50 w-1/2 overflow-hidden"
           >
-            <span className="text-sm font-medium text-amber-900 line-clamp-2 leading-tight flex-1 px-2">
+            <span
+              className={`text-sm font-medium text-amber-900 flex-1 px-2 ${
+                runIsos.length >= 2 ? "line-clamp-2 leading-tight" : "truncate"
+              }`}
+            >
               {state.meeting.otherPersonName}
             </span>
             <button
