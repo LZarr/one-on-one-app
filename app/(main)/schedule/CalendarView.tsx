@@ -336,6 +336,13 @@ export default function CalendarView({
       startIso: string;
       isPast: boolean;
       kind: "confirmed" | "incoming" | "outgoing";
+      // Whether this chip is actually one half of a meeting that straddles
+      // into a *neighboring tinted block* on that side — when true, that edge
+      // sits flush (no border-radius, no gap) against the other half's chip,
+      // so the two halves read as one continuous pill instead of two stacked
+      // boxes with a seam between them.
+      continuesFromPrev: boolean;
+      continuesToNext: boolean;
     };
     function tintedBlock() {
       const runIsos = getAgendaRunIsos(iso);
@@ -346,6 +353,7 @@ export default function CalendarView({
         // A continuation *within this block* was already drawn by the chip
         // pushed for its earlier row — skip it here.
         if (i > 0 && meetings[runIsos[i - 1]]?.requestId === m.requestId) return;
+        let continuesFromPrev = false;
         if (i === 0 && isMeetingContinuation(runIso)) {
           // This meeting started before this block. If that earlier slot was
           // itself in a *different tinted block*, that block only drew its own
@@ -357,11 +365,23 @@ export default function CalendarView({
           const dayIsos = groups[dateKey] ?? [];
           const prevIso = dayIsos[dayIsos.indexOf(runIso) - 1];
           if (!isMeetingSlotTinted(prevIso, m.type)) return;
+          continuesFromPrev = true;
         }
         let span = 0;
         for (let j = i; j < runIsos.length; j++) {
           if (meetings[runIsos[j]]?.requestId === m.requestId) span++;
           else break;
+        }
+        let continuesToNext = false;
+        if (i + span === runIsos.length) {
+          const lastIso = runIsos[i + span - 1];
+          const dateKey = lastIso.slice(0, 10);
+          const dayIsos = groups[dateKey] ?? [];
+          const nextIso = dayIsos[dayIsos.indexOf(lastIso) + 1];
+          const nextM = nextIso ? meetings[nextIso] : undefined;
+          if (nextM && nextM.requestId === m.requestId && isMeetingSlotTinted(nextIso, nextM.type)) {
+            continuesToNext = true;
+          }
         }
         const trueStart = getMeetingTrueStart(runIso);
         chips.push({
@@ -372,14 +392,24 @@ export default function CalendarView({
           startIso: trueStart,
           isPast: new Date(trueStart).getTime() < nowMs,
           kind: m.type,
+          continuesFromPrev,
+          continuesToNext,
         });
       });
       // Only reserve room for a chip on the label's own row if one actually
       // overlaps it — otherwise the label gets padded/truncated for a chip
       // that isn't even there.
       const labelNeedsClearance = chips.some((c) => c.top === 0);
+      // If a chip at the very top/bottom of this block is half of a straddling
+      // meeting, pull this block flush against its neighbor on that edge
+      // (cancelling the gap between blocks) and square off that corner.
+      const blockContinuesFromPrev = chips.some((c) => c.top === 0 && c.continuesFromPrev);
+      const blockContinuesToNext = chips.some((c) => c.top + c.height === runIsos.length * ROW_H && c.continuesToNext);
+      const blockRoundCls = `${blockContinuesFromPrev ? "rounded-t-none -mt-0.5" : "rounded-t-md"} ${
+        blockContinuesToNext ? "rounded-b-none" : "rounded-b-md"
+      }`;
       return (
-        <div key={iso} className={`${tint!.bg} rounded-md overflow-hidden relative`}>
+        <div key={iso} className={`${tint!.bg} ${blockRoundCls} overflow-hidden relative`}>
           {runIsos.map((runIso, i) => {
             const m = meetings[runIso];
             // Book/Block live in this row's own flex row (same as every other
@@ -432,6 +462,13 @@ export default function CalendarView({
             // has room for it (spans 2+ rows) — a 1-row chip is too short for
             // two lines and the overflow just bleeds into the row below it.
             const nameWrapCls = c.height >= 2 * ROW_H - 6 ? "line-clamp-2 leading-tight" : "truncate";
+            // A chip that's half of a meeting straddling into a neighboring
+            // tinted block sits flush against its other half on that edge —
+            // square off the corner and drop the border there so the two
+            // halves read as one continuous pill.
+            const edgeCls = `${c.continuesFromPrev ? "rounded-t-none border-t-0" : "rounded-t-md"} ${
+              c.continuesToNext ? "rounded-b-none border-b-0" : "rounded-b-md"
+            }`;
             if (c.isPast) {
               const past =
                 c.kind === "confirmed"
@@ -441,7 +478,7 @@ export default function CalendarView({
                 <div
                   key={i}
                   style={posStyle}
-                  className={`flex items-center justify-center gap-1.5 px-2.5 rounded-md border w-1/3 ${past.cls}`}
+                  className={`flex items-center justify-center gap-1.5 px-2.5 border w-1/3 ${edgeCls} ${past.cls}`}
                 >
                   <span className={`w-2 h-2 rounded-full ${past.dot} shrink-0`} />
                   <span className={`text-sm font-medium ${past.text} ${nameWrapCls} text-center`}>{c.name}</span>
@@ -453,7 +490,7 @@ export default function CalendarView({
                 <div
                   key={i}
                   style={posStyle}
-                  className="flex items-center rounded-md border border-amber-200 bg-amber-50 w-1/2 overflow-hidden"
+                  className={`flex items-center border border-amber-200 bg-amber-50 w-1/2 overflow-hidden ${edgeCls}`}
                 >
                   <span className={`text-sm font-medium text-amber-900 ${nameWrapCls} flex-1 px-2`}>{c.name}</span>
                   <button
@@ -506,7 +543,7 @@ export default function CalendarView({
                   if (confirming) setConfirmingCancel(null);
                 }}
                 disabled={busy === c.requestId}
-                className={`flex items-center justify-center gap-1.5 px-2.5 rounded-md border w-1/3 ${live.cls}`}
+                className={`flex items-center justify-center gap-1.5 px-2.5 border w-1/3 ${edgeCls} ${live.cls}`}
               >
                 {confirming ? (
                   <span className="text-sm font-semibold text-stone-800">Cancel?</span>
