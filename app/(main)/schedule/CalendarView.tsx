@@ -178,6 +178,18 @@ export default function CalendarView({
     return cur;
   }
 
+  // Would this meeting slot be drawn by an agenda-tinted merged block (true),
+  // or by the plain standalone renderer (false)? Mirrors the tint decision
+  // renderSlot makes for a slot it's actually rendering, so tintedBlock can
+  // tell whether a meeting's earlier slot was handled by a *different* tinted
+  // block (draw this one too) or by the standalone renderer, which already
+  // drew this meeting's full remaining span on its own (don't duplicate it).
+  function isMeetingSlotTinted(iso: string, kind: "confirmed" | "incoming" | "outgoing"): boolean {
+    if (!showAgenda || !agendaRunInfo[iso]) return false;
+    if (kind === "confirmed") return true;
+    return new Date(iso).getTime() >= nowMs;
+  }
+
   function getMeetingRunIsos(startIso: string): string[] {
     const dateKey = startIso.slice(0, 10);
     const dayIsos = groups[dateKey] ?? [];
@@ -332,12 +344,20 @@ export default function CalendarView({
         const m = meetings[runIso];
         if (!m) return;
         // A continuation *within this block* was already drawn by the chip
-        // pushed for its earlier row. A meeting that started in a different
-        // (earlier) block is a fresh start as far as this block is concerned
-        // — draw it here too, sized to whatever of it falls in this block,
-        // rather than leaving it blank just because it isn't the meeting's
-        // true first slot.
+        // pushed for its earlier row — skip it here.
         if (i > 0 && meetings[runIsos[i - 1]]?.requestId === m.requestId) return;
+        if (i === 0 && isMeetingContinuation(runIso)) {
+          // This meeting started before this block. If that earlier slot was
+          // itself in a *different tinted block*, that block only drew its own
+          // portion — this one needs to pick up the rest. But if the earlier
+          // slot wasn't tinted at all, the standalone (non-agenda) renderer
+          // already drew this meeting's full remaining span starting there,
+          // this row included — drawing it again here would duplicate it.
+          const dateKey = runIso.slice(0, 10);
+          const dayIsos = groups[dateKey] ?? [];
+          const prevIso = dayIsos[dayIsos.indexOf(runIso) - 1];
+          if (!isMeetingSlotTinted(prevIso, m.type)) return;
+        }
         let span = 0;
         for (let j = i; j < runIsos.length; j++) {
           if (meetings[runIsos[j]]?.requestId === m.requestId) span++;
