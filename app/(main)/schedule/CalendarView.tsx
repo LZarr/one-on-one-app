@@ -164,6 +164,20 @@ export default function CalendarView({
     return !!reqId && meetings[dayIsos[idx - 1]]?.requestId === reqId;
   }
 
+  // Walks back to the slot a meeting actually started at, regardless of which
+  // agenda-tinted block that slot happens to fall in — needed because a
+  // merged block only knows about its own rows, but accept/cancel need to
+  // touch every slot the meeting occupies, including ones in an earlier block.
+  function getMeetingTrueStart(iso: string): string {
+    let cur = iso;
+    while (isMeetingContinuation(cur)) {
+      const dateKey = cur.slice(0, 10);
+      const dayIsos = groups[dateKey] ?? [];
+      cur = dayIsos[dayIsos.indexOf(cur) - 1];
+    }
+    return cur;
+  }
+
   function getMeetingRunIsos(startIso: string): string[] {
     const dateKey = startIso.slice(0, 10);
     const dayIsos = groups[dateKey] ?? [];
@@ -317,19 +331,26 @@ export default function CalendarView({
       runIsos.forEach((runIso, i) => {
         const m = meetings[runIso];
         if (!m) return;
-        if (isMeetingContinuation(runIso)) return;
+        // A continuation *within this block* was already drawn by the chip
+        // pushed for its earlier row. A meeting that started in a different
+        // (earlier) block is a fresh start as far as this block is concerned
+        // — draw it here too, sized to whatever of it falls in this block,
+        // rather than leaving it blank just because it isn't the meeting's
+        // true first slot.
+        if (i > 0 && meetings[runIsos[i - 1]]?.requestId === m.requestId) return;
         let span = 0;
-        for (const mIso of getMeetingRunIsos(runIso)) {
-          if (runIsos.includes(mIso)) span++;
+        for (let j = i; j < runIsos.length; j++) {
+          if (meetings[runIsos[j]]?.requestId === m.requestId) span++;
           else break;
         }
+        const trueStart = getMeetingTrueStart(runIso);
         chips.push({
           top: i * ROW_H,
           height: Math.max(1, span) * ROW_H,
           name: m.otherPersonName,
           requestId: m.requestId,
-          startIso: runIso,
-          isPast: new Date(runIso).getTime() < nowMs,
+          startIso: trueStart,
+          isPast: new Date(trueStart).getTime() < nowMs,
           kind: m.type,
         });
       });
@@ -399,7 +420,7 @@ export default function CalendarView({
                   className={`flex items-center justify-center gap-1.5 px-2.5 rounded-md border w-1/3 ${past.cls}`}
                 >
                   <span className={`w-2 h-2 rounded-full ${past.dot} shrink-0`} />
-                  <span className={`text-sm font-medium ${past.text} truncate`}>{c.name}</span>
+                  <span className={`text-sm font-medium ${past.text} line-clamp-2 leading-tight text-center`}>{c.name}</span>
                 </div>
               );
             }
@@ -410,7 +431,7 @@ export default function CalendarView({
                   style={posStyle}
                   className="flex items-center rounded-md border border-amber-200 bg-amber-50 w-1/2 overflow-hidden"
                 >
-                  <span className="text-sm font-medium text-amber-900 truncate flex-1 px-2">{c.name}</span>
+                  <span className="text-sm font-medium text-amber-900 line-clamp-2 leading-tight flex-1 px-2">{c.name}</span>
                   <button
                     onClick={() => act(c.requestId, "accept", c.startIso)}
                     disabled={busy === c.requestId}
@@ -468,7 +489,7 @@ export default function CalendarView({
                 ) : (
                   <>
                     <span className={`w-2 h-2 rounded-full ${live.dot} shrink-0`} />
-                    <span className={`text-sm font-medium ${live.text} truncate`}>{c.name}</span>
+                    <span className={`text-sm font-medium ${live.text} line-clamp-2 leading-tight text-center`}>{c.name}</span>
                   </>
                 )}
               </button>
@@ -547,7 +568,7 @@ export default function CalendarView({
               return (
                 <div style={posStyle} className={`${clsBase} border-emerald-200 bg-emerald-50`}>
                   <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                  <span className="text-sm font-medium text-emerald-900 truncate">{state.meeting.otherPersonName}</span>
+                  <span className="text-sm font-medium text-emerald-900 line-clamp-2 leading-tight text-center">{state.meeting.otherPersonName}</span>
                 </div>
               );
             }
@@ -575,7 +596,7 @@ export default function CalendarView({
                 ) : (
                   <>
                     <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                    <span className="text-sm font-medium text-emerald-900 truncate">{state.meeting.otherPersonName}</span>
+                    <span className="text-sm font-medium text-emerald-900 line-clamp-2 leading-tight text-center">{state.meeting.otherPersonName}</span>
                   </>
                 )}
               </button>
@@ -628,7 +649,7 @@ export default function CalendarView({
                 ) : (
                   <>
                     <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-                    <span className="text-sm font-medium text-amber-900 truncate">{state.meeting.otherPersonName}</span>
+                    <span className="text-sm font-medium text-amber-900 line-clamp-2 leading-tight text-center">{state.meeting.otherPersonName}</span>
                   </>
                 )}
               </button>
@@ -657,7 +678,7 @@ export default function CalendarView({
             style={{ position: "absolute", top: 3, height: runIsos.length * 26 - 6, right: 4 }}
             className="flex items-center rounded-md border border-amber-200 bg-amber-50 w-1/2 overflow-hidden"
           >
-            <span className="text-sm font-medium text-amber-900 truncate flex-1 px-2">
+            <span className="text-sm font-medium text-amber-900 line-clamp-2 leading-tight flex-1 px-2">
               {state.meeting.otherPersonName}
             </span>
             <button
