@@ -52,8 +52,8 @@ function categorizeAgendaItem(title: string): AgendaCategory {
 const AGENDA_CATEGORY_STYLES: Record<AgendaCategory, { bg: string; text: string; dot: string; label: string }> = {
   meal: { bg: "bg-[#E6F4F3]", text: "text-[#3c6b67]", dot: "bg-[#E6F4F3]", label: "dinner / meal" },
   oneOnOne: { bg: "bg-[#BCE0E3]", text: "text-[#1f5457]", dot: "bg-[#BCE0E3]", label: "1:1 prep & slots" },
-  talk: { bg: "bg-[#83B8BC]", text: "text-[#1f4345]", dot: "bg-[#83B8BC]", label: "talks & day sessions" },
-  evening: { bg: "bg-[#4C8284]", text: "text-white", dot: "bg-[#4C8284]", label: "evening sessions & social time" },
+  talk: { bg: "bg-[#A8CED1]", text: "text-[#1f4345]", dot: "bg-[#A8CED1]", label: "talks & day sessions" },
+  evening: { bg: "bg-[#7BAEB0]", text: "text-[#1f4345]", dot: "bg-[#7BAEB0]", label: "evening sessions & social time" },
 };
 
 // Keep a long talk's row to one line: fall back to "Talk: <speaker>" when the full
