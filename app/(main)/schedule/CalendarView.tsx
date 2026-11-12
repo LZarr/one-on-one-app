@@ -253,19 +253,6 @@ export default function CalendarView({
     const state = classify(iso);
     const time = formatSlotTime(new Date(iso));
 
-    // Continuation of a multi-slot 1:1 already rendered as part of its start
-    // slot's merged block — nothing to draw here. When the overlay is showing,
-    // confirmed meetings are tinted/merged via the agenda run instead, so skip
-    // this for them and let that path handle continuation.
-    if (
-      ((state.kind === "confirmed" && !showAgenda) ||
-        state.kind === "incoming" ||
-        state.kind === "outgoing") &&
-      isMeetingContinuation(iso)
-    ) {
-      return null;
-    }
-
     const base =
       "flex items-center gap-2 pl-3 pr-0 py-0 text-sm min-h-[36px]";
     const flatBase = "flex items-center gap-1 px-1 py-1 text-sm min-h-[26px]";
@@ -286,24 +273,59 @@ export default function CalendarView({
     const tint = canTintRow && agenda ? AGENDA_CATEGORY_STYLES[agenda.category] : null;
 
     // Continuation slot of an already-rendered merged block: nothing to draw here.
+    // A tinted row merges along agenda-run boundaries (handled here); a confirmed
+    // meeting with no agenda tint at all merges along its own meeting-run instead
+    // (handled below) — the two runs don't always line up at the same slot.
     if (tint && !agenda!.isStart) return null;
+    if (
+      ((state.kind === "confirmed" && !tint) ||
+        state.kind === "incoming" ||
+        state.kind === "outgoing") &&
+      isMeetingContinuation(iso)
+    ) {
+      return null;
+    }
 
-    function tintedBlock(meetingChip?: ReactNode) {
+    // Renders one merged, agenda-tinted block. A confirmed meeting inside this
+    // block (which may start partway through it, not necessarily at the top)
+    // gets a name tag sized to the full span of slots it actually occupies,
+    // instead of a tag confined to a single 15-minute row.
+    const ROW_H = 26;
+    function tintedBlock() {
       const runIsos = getAgendaRunIsos(iso);
+      const chips: { top: number; height: number; name: string }[] = [];
+      runIsos.forEach((runIso, i) => {
+        const m = meetings[runIso];
+        if (m?.type !== "confirmed" || isMeetingContinuation(runIso)) return;
+        let span = 0;
+        for (const mIso of getMeetingRunIsos(runIso)) {
+          if (runIsos.includes(mIso)) span++;
+          else break;
+        }
+        chips.push({ top: i * ROW_H, height: Math.max(1, span) * ROW_H, name: m.otherPersonName });
+      });
       return (
-        <div key={iso} className={`${tint!.bg} rounded-md overflow-hidden`}>
+        <div key={iso} className={`${tint!.bg} rounded-md overflow-hidden relative`}>
           {runIsos.map((runIso, i) => (
-            <div key={runIso} className="flex items-center gap-1 px-1 py-1 text-sm min-h-[26px]">
+            <div key={runIso} className="flex items-center gap-1 px-1 text-sm" style={{ height: ROW_H }}>
               <span className={`text-xs w-16 shrink-0 font-medium ${tint!.text}`}>
                 {formatSlotTime(new Date(runIso))}
               </span>
               {i === 0 && (
-                <span className={`text-sm font-medium min-w-0 flex-1 truncate ${tint!.text}`}>
+                <span className={`text-sm font-medium min-w-0 flex-1 truncate pr-20 ${tint!.text}`}>
                   {agenda!.label}
                 </span>
               )}
-              {i === 0 && meetingChip}
             </div>
+          ))}
+          {chips.map((c, i) => (
+            <span
+              key={i}
+              style={{ position: "absolute", top: c.top, height: c.height, right: 6 }}
+              className="flex items-center text-[11px] font-semibold px-2.5 rounded-full bg-emerald-500 text-white truncate max-w-[45%]"
+            >
+              {c.name}
+            </span>
           ))}
         </div>
       );
@@ -356,17 +378,22 @@ export default function CalendarView({
       // In the retreat-schedule overlay, a confirmed 1:1 shouldn't take over the
       // whole row — just a small name tag on the side, so the printed schedule
       // stays the main thing you're looking at.
-      const chip = (
-        <span className="ml-1 text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 max-w-[40%] truncate bg-emerald-500 text-white">
-          {state.meeting.otherPersonName}
-        </span>
-      );
-      if (tint) return tintedBlock(chip);
-      return wrap(
-        <div className={`${flatBase} ${flatHlCls} justify-between ${state.isPast ? "opacity-60" : ""}`}>
-          <span className="text-xs text-stone-500 w-16 shrink-0 font-medium">{time}</span>
-          {chip}
-        </div>,
+      if (tint) return tintedBlock();
+      const runIsos = getMeetingRunIsos(iso);
+      return (
+        <div key={iso} className={`rounded-md overflow-hidden relative ${state.isPast ? "opacity-60" : ""}`}>
+          {runIsos.map((runIso) => (
+            <div key={runIso} className={`${flatBase} ${flatHlCls}`} style={{ height: 26 }}>
+              <span className="text-xs text-stone-500 w-16 shrink-0 font-medium">{formatSlotTime(new Date(runIso))}</span>
+            </div>
+          ))}
+          <span
+            style={{ position: "absolute", top: 0, height: runIsos.length * 26, right: 6 }}
+            className="flex items-center text-[11px] font-semibold px-2.5 rounded-full bg-emerald-500 text-white truncate max-w-[45%]"
+          >
+            {state.meeting.otherPersonName}
+          </span>
+        </div>
       );
     }
 
