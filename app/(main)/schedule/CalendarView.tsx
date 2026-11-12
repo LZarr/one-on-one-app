@@ -381,10 +381,15 @@ export default function CalendarView({
       // stays the main thing you're looking at.
       if (tint) return tintedBlock();
       const runIsos = getMeetingRunIsos(iso);
+      // Apply any highlight ring once, to the whole merged block, rather than
+      // per 15-min sub-row (which drew a visible seam between them).
+      const blockHlCls = runIsos.some((ri) => highlightedSlots.includes(ri))
+        ? "ring-2 ring-amber-400/40 bg-amber-50/40"
+        : "";
       return (
-        <div key={iso} className={`rounded-md overflow-hidden relative ${state.isPast ? "opacity-60" : ""}`}>
+        <div key={iso} className={`rounded-md overflow-hidden relative ${blockHlCls} ${state.isPast ? "opacity-60" : ""}`}>
           {runIsos.map((runIso) => (
-            <div key={runIso} className={`${flatBase} ${flatHlCls}`} style={{ height: 26 }}>
+            <div key={runIso} className={flatBase} style={{ height: 26 }}>
               <span className="text-xs text-stone-500 w-16 shrink-0 font-medium">{formatSlotTime(new Date(runIso))}</span>
             </div>
           ))}
