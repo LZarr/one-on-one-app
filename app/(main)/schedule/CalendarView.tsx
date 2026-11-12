@@ -178,11 +178,18 @@ export default function CalendarView({
     return run;
   }
 
-  const incomingRequests = Object.entries(meetings)
-    .filter(
-      ([iso, m]) => m.type === "incoming" && new Date(iso).getTime() >= nowMs,
-    )
-    .sort(([a], [b]) => a.localeCompare(b));
+  // A multi-slot meeting occupies several keys in `meetings` (same requestId)
+  // — keep only the earliest slot per request, both so it's counted once and
+  // so the iso handed to accept/decline is the run's real start.
+  const incomingByRequest = new Map<string, [string, SlotMeeting]>();
+  for (const [iso, m] of Object.entries(meetings)) {
+    if (m.type !== "incoming" || new Date(iso).getTime() < nowMs) continue;
+    const existing = incomingByRequest.get(m.requestId);
+    if (!existing || iso < existing[0]) incomingByRequest.set(m.requestId, [iso, m]);
+  }
+  const incomingRequests = Array.from(incomingByRequest.values()).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
 
   const modalOpen = showPendingModal && incomingRequests.length > 0;
 
@@ -294,7 +301,15 @@ export default function CalendarView({
     // while the agenda overlay is on, so those get their own chip too.
     const ROW_H = 26;
     type Chip =
-      | { kind: "meeting"; top: number; height: number; name: string }
+      | {
+          kind: "meeting";
+          top: number;
+          height: number;
+          name: string;
+          requestId: string;
+          startIso: string;
+          isPast: boolean;
+        }
       | { kind: "available"; top: number; height: number; iso: string }
       | { kind: "blocked"; top: number; height: number; iso: string };
     function tintedBlock() {
@@ -309,7 +324,15 @@ export default function CalendarView({
             if (runIsos.includes(mIso)) span++;
             else break;
           }
-          chips.push({ kind: "meeting", top: i * ROW_H, height: Math.max(1, span) * ROW_H, name: m.otherPersonName });
+          chips.push({
+            kind: "meeting",
+            top: i * ROW_H,
+            height: Math.max(1, span) * ROW_H,
+            name: m.otherPersonName,
+            requestId: m.requestId,
+            startIso: runIso,
+            isPast: new Date(runIso).getTime() < nowMs,
+          });
           return;
         }
         const rowState = classify(runIso);
@@ -342,15 +365,50 @@ export default function CalendarView({
           {chips.map((c, i) => {
             const posStyle = { position: "absolute" as const, top: c.top + 3, height: c.height - 6, right: 4 };
             if (c.kind === "meeting") {
+              if (c.isPast) {
+                return (
+                  <div
+                    key={i}
+                    style={posStyle}
+                    className="flex items-center justify-center gap-1.5 px-2.5 rounded-md border border-emerald-200 bg-emerald-50 w-1/3"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="text-xs font-medium text-emerald-900 truncate">{c.name}</span>
+                  </div>
+                );
+              }
+              const confirming = confirmingCancel === c.requestId;
               return (
-                <div
+                <button
                   key={i}
                   style={posStyle}
-                  className="flex items-center justify-center gap-1.5 px-2.5 rounded-md border border-emerald-200 bg-emerald-50 w-1/3"
+                  onClick={() => {
+                    if (confirming) {
+                      setConfirmingCancel(null);
+                      act(c.requestId, "cancel", c.startIso);
+                    } else {
+                      setConfirmingCancel(c.requestId);
+                    }
+                  }}
+                  onBlur={() => {
+                    if (confirming) setConfirmingCancel(null);
+                  }}
+                  disabled={busy === c.requestId}
+                  className={`flex items-center justify-center gap-1.5 px-2.5 rounded-md border w-1/3 ${
+                    confirming
+                      ? "border-stone-300 bg-stone-100"
+                      : "border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
+                  }`}
                 >
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                  <span className="text-xs font-medium text-emerald-900 truncate">{c.name}</span>
-                </div>
+                  {confirming ? (
+                    <span className="text-xs font-semibold text-stone-800">Cancel?</span>
+                  ) : (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                      <span className="text-xs font-medium text-emerald-900 truncate">{c.name}</span>
+                    </>
+                  )}
+                </button>
               );
             }
             if (c.kind === "available") {
@@ -440,13 +498,49 @@ export default function CalendarView({
               <span className="text-xs text-stone-500 w-16 shrink-0 font-medium">{formatSlotTime(new Date(runIso))}</span>
             </div>
           ))}
-          <div
-            style={{ position: "absolute", top: 3, height: runIsos.length * 26 - 6, right: 4 }}
-            className="flex items-center justify-center gap-1.5 px-2.5 rounded-md border border-emerald-200 bg-emerald-50 w-1/3"
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-            <span className="text-xs font-medium text-emerald-900 truncate">{state.meeting.otherPersonName}</span>
-          </div>
+          {(() => {
+            const requestId = state.meeting.requestId;
+            const confirming = confirmingCancel === requestId;
+            const posStyle = { position: "absolute" as const, top: 3, height: runIsos.length * 26 - 6, right: 4 };
+            const clsBase = "flex items-center justify-center gap-1.5 px-2.5 rounded-md border w-1/3";
+            if (state.isPast) {
+              return (
+                <div style={posStyle} className={`${clsBase} border-emerald-200 bg-emerald-50`}>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                  <span className="text-xs font-medium text-emerald-900 truncate">{state.meeting.otherPersonName}</span>
+                </div>
+              );
+            }
+            return (
+              <button
+                style={posStyle}
+                onClick={() => {
+                  if (confirming) {
+                    setConfirmingCancel(null);
+                    act(requestId, "cancel", iso);
+                  } else {
+                    setConfirmingCancel(requestId);
+                  }
+                }}
+                onBlur={() => {
+                  if (confirming) setConfirmingCancel(null);
+                }}
+                disabled={busy === requestId}
+                className={`${clsBase} ${
+                  confirming ? "border-stone-300 bg-stone-100" : "border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
+                }`}
+              >
+                {confirming ? (
+                  <span className="text-xs font-semibold text-stone-800">Cancel?</span>
+                ) : (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="text-xs font-medium text-emerald-900 truncate">{state.meeting.otherPersonName}</span>
+                  </>
+                )}
+              </button>
+            );
+          })()}
         </div>
       );
     }

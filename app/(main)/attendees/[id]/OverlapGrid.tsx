@@ -77,6 +77,18 @@ export default function OverlapGrid({
     return run;
   }
 
+  // The slot right after this one in its day, if it's part of the same
+  // request's run — used to skip re-rendering a row that's already covered
+  // by the merged box the run's first slot draws.
+  function isRunContinuation(iso: string): boolean {
+    const dateKey = iso.slice(0, 10);
+    const dayIsos = groups[dateKey] ?? [];
+    const idx = dayIsos.indexOf(iso);
+    if (idx <= 0) return false;
+    const reqId = betweenUsMap[iso]?.requestId;
+    return !!reqId && betweenUsMap[dayIsos[idx - 1]]?.requestId === reqId;
+  }
+
   const [betweenUsMap, setBetweenUsMap] = useState<Record<string, BetweenUsRequest>>(() => {
     const map: Record<string, BetweenUsRequest> = {};
     for (const p of betweenUs) {
@@ -199,17 +211,38 @@ export default function OverlapGrid({
 
   const allSlots = Object.values(groups).flat();
   const totalAvailable = allSlots.filter((iso) => classify(iso) === "available").length;
-  const totalBetweenUs = allSlots.filter((iso) => {
-    const s = classify(iso);
-    return s === "pendingOutgoing" || s === "pendingIncoming" || s === "confirmed";
-  }).length;
+  // A multi-slot meeting is still just one request — count distinct requests,
+  // not every slot it happens to occupy.
+  const totalBetweenUs = new Set(
+    allSlots
+      .filter((iso) => {
+        const s = classify(iso);
+        return s === "pendingOutgoing" || s === "pendingIncoming" || s === "confirmed";
+      })
+      .map((iso) => betweenUsMap[iso]!.requestId),
+  ).size;
 
   const base =
     "flex items-center gap-2 pl-3 pr-0 py-0 rounded-md border text-sm overflow-hidden min-h-[36px]";
 
+  function meetingTimeRange(p: BetweenUsRequest): string {
+    const start = new Date(p.slotStart);
+    const end = new Date(start.getTime() + MEETING_DURATION_MINUTES * 60 * 1000);
+    return formatSlotTimeRange(start, end);
+  }
+
   function renderSlot(iso: string, { isHighlighted }: { isHighlighted: boolean; isPast: boolean }) {
     const state = classify(iso);
     if (!state || state === "none") return null;
+    // A multi-slot meeting/request is one box, not one per base-grid slot it
+    // occupies — the run's first slot draws the whole thing, so later slots
+    // in the same run render nothing.
+    if (
+      (state === "confirmed" || state === "pendingOutgoing" || state === "pendingIncoming") &&
+      isRunContinuation(iso)
+    ) {
+      return null;
+    }
     const time = formatSlotTime(new Date(iso));
     const hlCls = isHighlighted
       ? "ring-2 ring-amber-400/60 border-amber-300 bg-amber-50/40"
@@ -241,9 +274,9 @@ export default function OverlapGrid({
       const p = betweenUsMap[iso]!;
       return (
         <div key={iso} className={`${base} border-emerald-200 bg-emerald-50 ${hlCls}`}>
-          <span className="text-xs text-emerald-700 w-16 shrink-0 font-semibold">{time}</span>
+          <span className="text-xs text-emerald-700 w-24 shrink-0 font-semibold">{meetingTimeRange(p)}</span>
           <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-          <span className="text-sm font-medium text-emerald-900 truncate flex-1">
+          <span className="text-sm font-medium text-emerald-900 truncate flex-1 text-center">
             Meeting with {toUserName}
           </span>
           <div className="flex self-stretch shrink-0 w-[72px] border-l border-emerald-200">
@@ -277,10 +310,10 @@ export default function OverlapGrid({
       const p = betweenUsMap[iso]!;
       return (
         <div key={iso} className={`${base} border-amber-200 bg-amber-50 ${hlCls}`}>
-          <span className="text-xs text-amber-700 w-16 shrink-0 font-semibold">{time}</span>
+          <span className="text-xs text-amber-700 w-24 shrink-0 font-semibold">{meetingTimeRange(p)}</span>
           <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-          <span className="text-sm font-medium text-amber-800 truncate flex-1">Requested</span>
-          <span className="text-[11px] text-amber-700/70 shrink-0 italic">waiting</span>
+          <span className="text-sm font-medium text-amber-800 truncate flex-1 text-center">Requested</span>
+          <span className="text-[11px] text-amber-700/70 shrink-0 italic text-center">waiting</span>
           <div className="flex self-stretch shrink-0 w-[72px] border-l border-amber-200">
             <button
               onClick={() => {
@@ -312,9 +345,9 @@ export default function OverlapGrid({
       const p = betweenUsMap[iso]!;
       return (
         <div key={iso} className={`${base} border-amber-200 bg-amber-50 ${hlCls}`}>
-          <span className="text-xs text-amber-700 w-16 shrink-0 font-semibold">{time}</span>
+          <span className="text-xs text-amber-700 w-24 shrink-0 font-semibold">{meetingTimeRange(p)}</span>
           <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-          <span className="text-sm font-medium text-amber-900 truncate flex-1">
+          <span className="text-sm font-medium text-amber-900 truncate flex-1 text-center">
             {toUserName} requested
             {p.message && (
               <span title={p.message}>
