@@ -46,7 +46,7 @@ export default async function AttendPage({
   const action = selectAttendee.bind(null, retreatId);
 
   return (
-    <div className="min-h-dvh bg-stone-50 flex items-center focus-within:items-start justify-center px-4 py-10 focus-within:pt-16 sm:focus-within:pt-24">
+    <div className="min-h-dvh bg-stone-50 flex items-center max-sm:focus-within:items-start justify-center px-4 py-10 max-sm:focus-within:pt-16">
       <div className="w-full max-w-md">
         <div className="text-center mb-5">
           <div className="mx-auto mb-3 flex justify-center">

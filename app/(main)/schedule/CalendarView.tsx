@@ -417,7 +417,6 @@ export default function CalendarView({
       const dotCls = assigned ? "bg-stone-300" : "bg-emerald-500";
       const timeCls = assigned ? "text-stone-600" : "text-emerald-700";
       const nameCls = assigned ? "text-stone-700" : "text-emerald-900";
-      const borderCls = assigned ? "border-stone-200" : "border-emerald-200";
       const extraIsos = getMeetingRunIsos(iso).slice(1);
       return wrap(
         <div className={`rounded-md border overflow-hidden ${colorCls} ${hlCls} ${pastCls}`}>
@@ -429,7 +428,7 @@ export default function CalendarView({
               {assigned && <span className="font-normal text-stone-400"> (assigned)</span>}
             </span>
             {!state.isPast && (
-              <div className={`flex self-stretch shrink-0 w-[72px] border-l ${borderCls}`}>
+              <div className="flex self-stretch shrink-0 w-[72px]">
                 <button
                   onClick={() => {
                     if (confirmingCancel === state.meeting.requestId) {
@@ -521,7 +520,7 @@ export default function CalendarView({
             <div className="w-2 h-2 rounded-full bg-stone-300 shrink-0" />
             <span className="text-sm font-medium text-stone-600 truncate flex-1">{state.meeting.otherPersonName}</span>
             <span className="text-[11px] text-stone-400 shrink-0 italic">waiting</span>
-            <div className="flex self-stretch shrink-0 w-[72px] border-l border-stone-200">
+            <div className="flex self-stretch shrink-0 w-[72px]">
               <button
                 onClick={() => {
                   if (confirmingCancel === state.meeting.requestId) {
