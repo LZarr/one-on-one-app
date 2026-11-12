@@ -274,7 +274,9 @@ export default function CalendarView({
     }
     const updated = { ...meetings };
     if (action === "accept") {
-      updated[iso] = { ...updated[iso], type: "confirmed" };
+      for (const runIso of getMeetingRunIsos(iso)) {
+        updated[runIso] = { ...updated[runIso], type: "confirmed" };
+      }
     } else if (action === "decline" || action === "cancel") {
       for (const runIso of getMeetingRunIsos(iso)) {
         delete updated[runIso];

@@ -175,12 +175,12 @@ export default function OverlapGrid({
   function classify(iso: string): SlotState | null {
     const slotMs = new Date(iso).getTime();
     if (slotMs < nowMs) return null;
-    if (slotMs < nowMs + bufferMs) return "booked";
     const p = betweenUsMap[iso];
     if (p) {
       if (p.status === "accepted") return "confirmed";
       return p.direction === "outgoing" ? "pendingOutgoing" : "pendingIncoming";
     }
+    if (slotMs < nowMs + bufferMs) return "booked";
     const myHasOther = myBookedSet.has(iso);
     const theirHasOther = theirBookedSet.has(iso);
     if (myHasOther && theirHasOther) return "bothBooked";
