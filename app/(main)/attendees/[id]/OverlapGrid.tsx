@@ -374,6 +374,7 @@ export default function OverlapGrid({
         renderSlot={renderSlot}
         filterSlot={filterSlot}
         emptyDayMessage="No overlap"
+        tabs
       />
 
       {confirm && (
