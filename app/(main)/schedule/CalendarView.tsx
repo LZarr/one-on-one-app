@@ -276,18 +276,20 @@ export default function CalendarView({
       state.kind === "past" ||
       state.kind === "available" ||
       state.kind === "blocked" ||
-      (state.kind === "confirmed" && showAgenda);
+      (state.kind === "confirmed" && showAgenda) ||
+      ((state.kind === "incoming" || state.kind === "outgoing") && showAgenda && !state.isPast);
     const tint = canTintRow && agenda ? AGENDA_CATEGORY_STYLES[agenda.category] : null;
 
     // Continuation slot of an already-rendered merged block: nothing to draw here.
-    // A tinted row merges along agenda-run boundaries (handled here); a confirmed
+    // A tinted row merges along agenda-run boundaries (handled here); a live
     // meeting with no agenda tint at all merges along its own meeting-run instead
     // (handled below) — the two runs don't always line up at the same slot.
     if (tint && !agenda!.isStart) return null;
     if (
-      ((state.kind === "confirmed" && !tint) ||
+      ((state.kind === "confirmed" ||
         state.kind === "incoming" ||
         state.kind === "outgoing") &&
+        !tint) &&
       isMeetingContinuation(iso)
     ) {
       return null;
@@ -307,6 +309,7 @@ export default function CalendarView({
       requestId: string;
       startIso: string;
       isPast: boolean;
+      kind: "confirmed" | "incoming" | "outgoing";
     };
     function tintedBlock() {
       const runIsos = getAgendaRunIsos(iso);
@@ -314,7 +317,7 @@ export default function CalendarView({
       runIsos.forEach((runIso, i) => {
         const m = meetings[runIso];
         if (!m) return;
-        if (m.type !== "confirmed" || isMeetingContinuation(runIso)) return;
+        if (isMeetingContinuation(runIso)) return;
         let span = 0;
         for (const mIso of getMeetingRunIsos(runIso)) {
           if (runIsos.includes(mIso)) span++;
@@ -327,6 +330,7 @@ export default function CalendarView({
           requestId: m.requestId,
           startIso: runIso,
           isPast: new Date(runIso).getTime() < nowMs,
+          kind: m.type,
         });
       });
       // Only reserve room for a chip on the label's own row if one actually
@@ -344,7 +348,7 @@ export default function CalendarView({
             const rowState = !m ? classify(runIso) : null;
             return (
               <div key={runIso} className="flex items-center gap-1 px-1 text-sm" style={{ height: ROW_H }}>
-                <span className={`text-xs w-16 shrink-0 font-medium ${tint!.text}`}>
+                <span className={`text-sm w-16 shrink-0 font-medium ${tint!.text}`}>
                   {formatSlotTime(new Date(runIso))}
                 </span>
                 {i === 0 && (
@@ -358,13 +362,13 @@ export default function CalendarView({
                   <div className="flex items-center gap-3 shrink-0 pr-2 ml-auto">
                     <button
                       onClick={() => router.push(`/attendees?slot=${runIso}`)}
-                      className="text-xs text-stone-900 font-medium hover:text-accent-600"
+                      className="text-sm text-stone-900 font-medium hover:text-accent-600"
                     >
                       Book
                     </button>
                     <button
                       onClick={() => toggleBlock(runIso)}
-                      className="text-xs text-stone-900 font-medium hover:text-accent-600"
+                      className="text-sm text-stone-900 font-medium hover:text-accent-600"
                     >
                       Block
                     </button>
@@ -373,7 +377,7 @@ export default function CalendarView({
                 {rowState?.kind === "blocked" && !adminBlocked.has(runIso) && (
                   <button
                     onClick={() => toggleBlock(runIso)}
-                    className="text-xs text-stone-900 font-medium hover:text-accent-600 shrink-0 pr-2 ml-auto"
+                    className="text-sm text-stone-900 font-medium hover:text-accent-600 shrink-0 pr-2 ml-auto"
                   >
                     Unblock
                   </button>
@@ -384,18 +388,63 @@ export default function CalendarView({
           {chips.map((c, i) => {
             const posStyle = { position: "absolute" as const, top: c.top + 3, height: c.height - 6, right: 4 };
             if (c.isPast) {
+              const past =
+                c.kind === "confirmed"
+                  ? { dot: "bg-emerald-500", text: "text-emerald-900", cls: "border-emerald-200 bg-emerald-50" }
+                  : { dot: "bg-stone-300", text: "text-stone-500", cls: "border-stone-200 bg-stone-50" };
               return (
                 <div
                   key={i}
                   style={posStyle}
-                  className="flex items-center justify-center gap-1.5 px-2.5 rounded-md border border-emerald-200 bg-emerald-50 w-1/3"
+                  className={`flex items-center justify-center gap-1.5 px-2.5 rounded-md border w-1/3 ${past.cls}`}
                 >
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                  <span className="text-xs font-medium text-emerald-900 truncate">{c.name}</span>
+                  <span className={`w-2 h-2 rounded-full ${past.dot} shrink-0`} />
+                  <span className={`text-sm font-medium ${past.text} truncate`}>{c.name}</span>
+                </div>
+              );
+            }
+            if (c.kind === "incoming") {
+              return (
+                <div
+                  key={i}
+                  style={posStyle}
+                  className="flex items-center rounded-md border border-amber-200 bg-amber-50 w-1/2 overflow-hidden"
+                >
+                  <span className="text-sm font-medium text-amber-900 truncate flex-1 px-2">{c.name}</span>
+                  <button
+                    onClick={() => act(c.requestId, "accept", c.startIso)}
+                    disabled={busy === c.requestId}
+                    className="self-stretch px-2 text-sm font-semibold text-emerald-600 hover:bg-emerald-100 disabled:opacity-50"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={() => act(c.requestId, "decline", c.startIso)}
+                    disabled={busy === c.requestId}
+                    className="self-stretch px-2 text-sm font-medium text-stone-400 border-l border-amber-200 hover:bg-stone-100 disabled:opacity-50"
+                  >
+                    Decline
+                  </button>
                 </div>
               );
             }
             const confirming = confirmingCancel === c.requestId;
+            const live =
+              c.kind === "confirmed"
+                ? {
+                    dot: "bg-emerald-500",
+                    text: "text-emerald-900",
+                    cls: confirming
+                      ? "border-stone-300 bg-stone-100"
+                      : "border-emerald-200 bg-emerald-50 hover:bg-emerald-100",
+                  }
+                : {
+                    dot: "bg-amber-500",
+                    text: "text-amber-900",
+                    cls: confirming
+                      ? "border-stone-300 bg-stone-100"
+                      : "border-amber-200 bg-amber-50 hover:bg-amber-100",
+                  };
             return (
               <button
                 key={i}
@@ -412,18 +461,14 @@ export default function CalendarView({
                   if (confirming) setConfirmingCancel(null);
                 }}
                 disabled={busy === c.requestId}
-                className={`flex items-center justify-center gap-1.5 px-2.5 rounded-md border w-1/3 ${
-                  confirming
-                    ? "border-stone-300 bg-stone-100"
-                    : "border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
-                }`}
+                className={`flex items-center justify-center gap-1.5 px-2.5 rounded-md border w-1/3 ${live.cls}`}
               >
                 {confirming ? (
-                  <span className="text-xs font-semibold text-stone-800">Cancel?</span>
+                  <span className="text-sm font-semibold text-stone-800">Cancel?</span>
                 ) : (
                   <>
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                    <span className="text-xs font-medium text-emerald-900 truncate">{c.name}</span>
+                    <span className={`w-2 h-2 rounded-full ${live.dot} shrink-0`} />
+                    <span className={`text-sm font-medium ${live.text} truncate`}>{c.name}</span>
                   </>
                 )}
               </button>
@@ -441,7 +486,7 @@ export default function CalendarView({
       <div key={iso}>
         {row}
         {caption && (
-          <div className="text-[11px] text-stone-400 italic pl-3 pt-0.5 pb-1.5 truncate">
+          <div className="text-xs text-stone-400 italic pl-3 pt-0.5 pb-1.5 truncate">
             {caption}
           </div>
         )}
@@ -452,7 +497,7 @@ export default function CalendarView({
       if (tint) return tintedBlock();
       return wrap(
         <div className={`${flatBase} ${flatHlCls}`}>
-          <span className="text-xs text-stone-300 w-16 shrink-0 font-medium">{time}</span>
+          <span className="text-sm text-stone-300 w-16 shrink-0 font-medium">{time}</span>
         </div>,
       );
     }
@@ -464,13 +509,13 @@ export default function CalendarView({
           <div className="flex flex-col shrink-0 w-16">
             {runIsos.map((runIso) => (
               <div key={runIso} className="flex items-center pl-1" style={{ height: ROW_H }}>
-                <span className="text-xs text-stone-400 font-medium">{formatSlotTime(new Date(runIso))}</span>
+                <span className="text-sm text-stone-400 font-medium">{formatSlotTime(new Date(runIso))}</span>
               </div>
             ))}
           </div>
           <div className="w-2 h-2 rounded-full bg-stone-300 shrink-0" />
           <span className="text-sm text-stone-500 truncate flex-1 px-2">{state.meeting.otherPersonName}</span>
-          <span className="text-[11px] text-stone-400 shrink-0 italic pr-3">missed</span>
+          <span className="text-xs text-stone-400 shrink-0 italic pr-3">missed</span>
         </div>,
       );
     }
@@ -490,7 +535,7 @@ export default function CalendarView({
         <div key={iso} className={`rounded-md overflow-hidden relative ${blockHlCls} ${state.isPast ? "opacity-60" : ""}`}>
           {runIsos.map((runIso) => (
             <div key={runIso} className={flatBase} style={{ height: 26 }}>
-              <span className="text-xs text-stone-500 w-16 shrink-0 font-medium">{formatSlotTime(new Date(runIso))}</span>
+              <span className="text-sm text-stone-500 w-16 shrink-0 font-medium">{formatSlotTime(new Date(runIso))}</span>
             </div>
           ))}
           {(() => {
@@ -502,7 +547,7 @@ export default function CalendarView({
               return (
                 <div style={posStyle} className={`${clsBase} border-emerald-200 bg-emerald-50`}>
                   <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                  <span className="text-xs font-medium text-emerald-900 truncate">{state.meeting.otherPersonName}</span>
+                  <span className="text-sm font-medium text-emerald-900 truncate">{state.meeting.otherPersonName}</span>
                 </div>
               );
             }
@@ -526,16 +571,110 @@ export default function CalendarView({
                 }`}
               >
                 {confirming ? (
-                  <span className="text-xs font-semibold text-stone-800">Cancel?</span>
+                  <span className="text-sm font-semibold text-stone-800">Cancel?</span>
                 ) : (
                   <>
                     <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                    <span className="text-xs font-medium text-emerald-900 truncate">{state.meeting.otherPersonName}</span>
+                    <span className="text-sm font-medium text-emerald-900 truncate">{state.meeting.otherPersonName}</span>
                   </>
                 )}
               </button>
             );
           })()}
+        </div>
+      );
+    }
+
+    if (state.kind === "outgoing" && showAgenda) {
+      // Same small-tag treatment as a confirmed meeting — a pending request
+      // you sent shouldn't take over the row either.
+      if (tint) return tintedBlock();
+      const runIsos = getMeetingRunIsos(iso);
+      const blockHlCls = runIsos.some((ri) => highlightedSlots.includes(ri))
+        ? "ring-2 ring-amber-400/40 bg-amber-50/40"
+        : "";
+      return (
+        <div key={iso} className={`rounded-md overflow-hidden relative ${blockHlCls}`}>
+          {runIsos.map((runIso) => (
+            <div key={runIso} className={flatBase} style={{ height: 26 }}>
+              <span className="text-sm text-stone-500 w-16 shrink-0 font-medium">{formatSlotTime(new Date(runIso))}</span>
+            </div>
+          ))}
+          {(() => {
+            const requestId = state.meeting.requestId;
+            const confirming = confirmingCancel === requestId;
+            const posStyle = { position: "absolute" as const, top: 3, height: runIsos.length * 26 - 6, right: 4 };
+            return (
+              <button
+                style={posStyle}
+                onClick={() => {
+                  if (confirming) {
+                    setConfirmingCancel(null);
+                    act(requestId, "cancel", iso);
+                  } else {
+                    setConfirmingCancel(requestId);
+                  }
+                }}
+                onBlur={() => {
+                  if (confirming) setConfirmingCancel(null);
+                }}
+                disabled={busy === requestId}
+                className={`flex items-center justify-center gap-1.5 px-2.5 rounded-md border w-1/3 ${
+                  confirming ? "border-stone-300 bg-stone-100" : "border-amber-200 bg-amber-50 hover:bg-amber-100"
+                }`}
+              >
+                {confirming ? (
+                  <span className="text-sm font-semibold text-stone-800">Cancel?</span>
+                ) : (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                    <span className="text-sm font-medium text-amber-900 truncate">{state.meeting.otherPersonName}</span>
+                  </>
+                )}
+              </button>
+            );
+          })()}
+        </div>
+      );
+    }
+
+    if (state.kind === "incoming" && showAgenda) {
+      // Same small-tag treatment, but a request waiting on you needs its
+      // Accept/Decline actions rather than a Cancel.
+      if (tint) return tintedBlock();
+      const runIsos = getMeetingRunIsos(iso);
+      const blockHlCls = runIsos.some((ri) => highlightedSlots.includes(ri))
+        ? "ring-2 ring-amber-400/40 bg-amber-50/40"
+        : "";
+      return (
+        <div key={iso} className={`rounded-md overflow-hidden relative ${blockHlCls}`}>
+          {runIsos.map((runIso) => (
+            <div key={runIso} className={flatBase} style={{ height: 26 }}>
+              <span className="text-sm text-stone-500 w-16 shrink-0 font-medium">{formatSlotTime(new Date(runIso))}</span>
+            </div>
+          ))}
+          <div
+            style={{ position: "absolute", top: 3, height: runIsos.length * 26 - 6, right: 4 }}
+            className="flex items-center rounded-md border border-amber-200 bg-amber-50 w-1/2 overflow-hidden"
+          >
+            <span className="text-sm font-medium text-amber-900 truncate flex-1 px-2">
+              {state.meeting.otherPersonName}
+            </span>
+            <button
+              onClick={() => act(state.meeting.requestId, "accept", iso)}
+              disabled={busy === state.meeting.requestId}
+              className="self-stretch px-2 text-sm font-semibold text-emerald-600 hover:bg-emerald-100 disabled:opacity-50"
+            >
+              Accept
+            </button>
+            <button
+              onClick={() => act(state.meeting.requestId, "decline", iso)}
+              disabled={busy === state.meeting.requestId}
+              className="self-stretch px-2 text-sm font-medium text-stone-400 border-l border-amber-200 hover:bg-stone-100 disabled:opacity-50"
+            >
+              Decline
+            </button>
+          </div>
         </div>
       );
     }
@@ -553,7 +692,7 @@ export default function CalendarView({
           <div className="flex flex-col shrink-0 w-16">
             {runIsos.map((runIso) => (
               <div key={runIso} className="flex items-center pl-1" style={{ height: ROW_H }}>
-                <span className={`text-xs ${timeCls} font-medium`}>{formatSlotTime(new Date(runIso))}</span>
+                <span className={`text-sm ${timeCls} font-medium`}>{formatSlotTime(new Date(runIso))}</span>
               </div>
             ))}
           </div>
@@ -577,7 +716,7 @@ export default function CalendarView({
                   setConfirmingCancel(null);
               }}
               disabled={busy === state.meeting.requestId}
-              className={`self-stretch shrink-0 w-[72px] text-xs font-medium ${
+              className={`self-stretch shrink-0 w-[72px] text-sm font-medium ${
                 confirmingCancel === state.meeting.requestId
                   ? "text-stone-800 bg-stone-100 font-semibold"
                   : "text-stone-600 hover:bg-stone-50 hover:text-stone-800"
@@ -597,7 +736,7 @@ export default function CalendarView({
           <div className="flex flex-col shrink-0 w-16">
             {runIsos.map((runIso) => (
               <div key={runIso} className="flex items-center pl-1" style={{ height: ROW_H }}>
-                <span className="text-xs text-amber-700 font-medium">{formatSlotTime(new Date(runIso))}</span>
+                <span className="text-sm text-amber-700 font-medium">{formatSlotTime(new Date(runIso))}</span>
               </div>
             ))}
           </div>
@@ -621,14 +760,14 @@ export default function CalendarView({
             <button
               onClick={() => act(state.meeting.requestId, "accept", iso)}
               disabled={busy === state.meeting.requestId}
-              className="self-stretch flex-1 text-emerald-600 text-xs font-semibold hover:bg-emerald-50 disabled:opacity-50"
+              className="self-stretch flex-1 text-emerald-600 text-sm font-semibold hover:bg-emerald-50 disabled:opacity-50"
             >
               Accept
             </button>
             <button
               onClick={() => act(state.meeting.requestId, "decline", iso)}
               disabled={busy === state.meeting.requestId}
-              className="self-stretch flex-1 border-l border-amber-200 text-stone-400 text-xs font-medium hover:bg-stone-50 hover:text-stone-600 disabled:opacity-50"
+              className="self-stretch flex-1 border-l border-amber-200 text-stone-400 text-sm font-medium hover:bg-stone-50 hover:text-stone-600 disabled:opacity-50"
             >
               Decline
             </button>
@@ -644,13 +783,13 @@ export default function CalendarView({
           <div className="flex flex-col shrink-0 w-16">
             {runIsos.map((runIso) => (
               <div key={runIso} className="flex items-center pl-1" style={{ height: ROW_H }}>
-                <span className="text-xs text-stone-500 font-medium">{formatSlotTime(new Date(runIso))}</span>
+                <span className="text-sm text-stone-500 font-medium">{formatSlotTime(new Date(runIso))}</span>
               </div>
             ))}
           </div>
           <div className="w-2 h-2 rounded-full bg-stone-300 shrink-0" />
           <span className="text-sm font-medium text-stone-600 truncate flex-1 px-2">{state.meeting.otherPersonName}</span>
-          <span className="text-[11px] text-stone-400 shrink-0 italic">waiting</span>
+          <span className="text-xs text-stone-400 shrink-0 italic">waiting</span>
           <button
             onClick={() => {
               if (confirmingCancel === state.meeting.requestId) {
@@ -665,7 +804,7 @@ export default function CalendarView({
                 setConfirmingCancel(null);
             }}
             disabled={busy === state.meeting.requestId}
-            className={`self-stretch shrink-0 w-[72px] text-xs font-medium ${
+            className={`self-stretch shrink-0 w-[72px] text-sm font-medium ${
               confirmingCancel === state.meeting.requestId
                 ? "text-stone-700 bg-stone-100 font-semibold"
                 : "text-stone-400 hover:bg-stone-50 hover:text-stone-600"
@@ -681,18 +820,18 @@ export default function CalendarView({
       if (tint) return tintedBlock();
       return wrap(
         <div className={`${flatBase} rounded-md hover:bg-stone-50 ${flatHlCls}`}>
-          <span className="text-xs text-stone-500 w-16 shrink-0 font-medium">{time}</span>
+          <span className="text-sm text-stone-500 w-16 shrink-0 font-medium">{time}</span>
           <span className="flex-1" />
           <div className="flex items-center gap-3 shrink-0 pr-2">
             <button
               onClick={() => router.push(`/attendees?slot=${iso}`)}
-              className="text-xs text-stone-900 font-medium hover:text-accent-600"
+              className="text-sm text-stone-900 font-medium hover:text-accent-600"
             >
               Book
             </button>
             <button
               onClick={() => toggleBlock(iso)}
-              className="text-xs text-stone-900 font-medium hover:text-accent-600"
+              className="text-sm text-stone-900 font-medium hover:text-accent-600"
             >
               Block
             </button>
@@ -705,12 +844,12 @@ export default function CalendarView({
     if (tint) return tintedBlock();
     return wrap(
       <div className={`${flatBase} rounded-md hover:bg-stone-50 ${flatHlCls}`}>
-        <span className="text-xs text-stone-300 w-16 shrink-0 font-medium">{time}</span>
+        <span className="text-sm text-stone-300 w-16 shrink-0 font-medium">{time}</span>
         <span className="text-sm text-stone-300 flex-1">{isAdminBlocked ? "Blocked by admin" : "Blocked"}</span>
         {!isAdminBlocked && (
           <button
             onClick={() => toggleBlock(iso)}
-            className="text-stone-300 text-xs font-medium hover:text-stone-600 shrink-0 pr-2"
+            className="text-stone-300 text-sm font-medium hover:text-stone-600 shrink-0 pr-2"
           >
             Unblock
           </button>
@@ -732,7 +871,7 @@ export default function CalendarView({
               You have {incomingRequests.length} pending 1:1 {incomingRequests.length === 1 ? "request" : "requests"}
             </span>
           </div>
-          <span className="text-xs text-red-700 font-semibold shrink-0">
+          <span className="text-sm text-red-700 font-semibold shrink-0">
             Review &rarr;
           </span>
         </button>
@@ -756,7 +895,7 @@ export default function CalendarView({
         )}
       </div>
 
-      <div className="text-xs text-stone-400 flex flex-wrap gap-4 mb-5 pb-4 border-b border-stone-200/60">
+      <div className="text-sm text-stone-400 flex flex-wrap gap-4 mb-5 pb-4 border-b border-stone-200/60">
         <span className="flex items-center gap-2">
           <span className="inline-block w-3 h-3 bg-emerald-500 rounded" />
           confirmed
@@ -793,7 +932,7 @@ export default function CalendarView({
             <div className="px-5 py-4 border-b border-stone-200 flex items-center justify-between">
               <div>
                 <h2 className="text-base font-bold text-stone-900">Pending 1:1 Requests</h2>
-                <p className="text-xs text-stone-500 mt-0.5">
+                <p className="text-sm text-stone-500 mt-0.5">
                   {incomingRequests.length} waiting on your response
                 </p>
               </div>
@@ -810,25 +949,25 @@ export default function CalendarView({
                 <div key={iso} className="px-5 py-3 flex items-center gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-stone-900 truncate">{m.otherPersonName}</div>
-                    <div className="text-xs text-stone-500 mt-0.5">
+                    <div className="text-sm text-stone-500 mt-0.5">
                       {formatSlotDay(new Date(iso))} · {formatSlotTime(new Date(iso))}
                     </div>
                     {m.message && (
-                      <div className="text-xs text-stone-500 italic mt-1 whitespace-pre-wrap">&ldquo;{m.message}&rdquo;</div>
+                      <div className="text-sm text-stone-500 italic mt-1 whitespace-pre-wrap">&ldquo;{m.message}&rdquo;</div>
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <button
                       onClick={() => act(m.requestId, "accept", iso)}
                       disabled={busy === m.requestId}
-                      className="px-3 py-1.5 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-semibold hover:bg-emerald-100 disabled:opacity-50"
+                      className="px-3 py-1.5 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm font-semibold hover:bg-emerald-100 disabled:opacity-50"
                     >
                       Accept
                     </button>
                     <button
                       onClick={() => act(m.requestId, "decline", iso)}
                       disabled={busy === m.requestId}
-                      className="px-3 py-1.5 rounded-md border border-stone-200 bg-white text-stone-500 text-xs font-medium hover:bg-stone-50 hover:text-stone-700 disabled:opacity-50"
+                      className="px-3 py-1.5 rounded-md border border-stone-200 bg-white text-stone-500 text-sm font-medium hover:bg-stone-50 hover:text-stone-700 disabled:opacity-50"
                     >
                       Reject
                     </button>
