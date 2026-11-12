@@ -1,6 +1,6 @@
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { getRetreat } from "@/lib/config";
+import { getRetreat, MEETING_DURATION_MINUTES } from "@/lib/config";
 import { meetingsToIcs } from "@/lib/ics";
 
 export async function GET(
@@ -27,7 +27,7 @@ export async function GET(
     {
       id: m.id,
       slotStart: m.slotStart,
-      durationMinutes: retreat?.granularityMinutes ?? 30,
+      durationMinutes: MEETING_DURATION_MINUTES,
       withName: other.name,
       withEmail: other.email,
       retreatName: retreat?.name ?? "Retreat",

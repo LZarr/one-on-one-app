@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { lockSlot } from "./booking";
+import { meetingSlotStarts } from "./config";
 import {
   notifyRequestAccepted,
   notifyRequestDeclined,
@@ -29,16 +30,22 @@ export async function respondToRequest(
     if (action === "accept") {
       try {
         await prisma.$transaction(async (tx) => {
-          await lockSlot(tx, mr.retreatId, mr.slotStart, [mr.fromUserId, mr.toUserId]);
-          const [retreat, conflict] = await Promise.all([
-            tx.retreat.findUnique({
-              where: { id: mr.retreatId },
-              select: { blockedSlots: true },
-            }),
-            tx.meetingRequest.findFirst({
+          const retreat = await tx.retreat.findUnique({ where: { id: mr.retreatId } });
+          if (!retreat) throw new Error("Retreat not found.");
+          const meetingSlots = meetingSlotStarts(mr.slotStart, retreat);
+
+          for (const slot of meetingSlots) {
+            await lockSlot(tx, mr.retreatId, slot, [mr.fromUserId, mr.toUserId]);
+          }
+
+          const blocked = new Set(retreat.blockedSlots ?? []);
+          for (const slot of meetingSlots) {
+            if (blocked.has(slot.toISOString()))
+              throw new Error("That slot has been blocked by the retreat admin.");
+            const conflict = await tx.meetingRequest.findFirst({
               where: {
                 retreatId: mr.retreatId,
-                slotStart: mr.slotStart,
+                slotStart: slot,
                 status: "accepted",
                 OR: [
                   { fromUserId: mr.fromUserId },
@@ -47,11 +54,10 @@ export async function respondToRequest(
                   { toUserId: mr.toUserId },
                 ],
               },
-            }),
-          ]);
-          if (retreat?.blockedSlots.includes(mr.slotStart.toISOString()))
-            throw new Error("That slot has been blocked by the retreat admin.");
-          if (conflict) throw new Error("Slot already booked.");
+            });
+            if (conflict) throw new Error("Slot already booked.");
+          }
+
           await tx.meetingRequest.update({
             where: { id: requestId },
             data: { status: "accepted" },
@@ -59,7 +65,7 @@ export async function respondToRequest(
           await tx.meetingRequest.updateMany({
             where: {
               retreatId: mr.retreatId,
-              slotStart: mr.slotStart,
+              slotStart: { in: meetingSlots },
               status: "pending",
               id: { not: requestId },
               OR: [

@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { lockSlot } from "./booking";
 import { notifyAdminScheduled } from "./notifications";
+import { meetingSlotStarts } from "./config";
 
 export type AdminMeetingResult =
   | { ok: true; id: string }
@@ -21,15 +22,28 @@ export async function createAdminMeeting(
   let created;
   try {
     created = await prisma.$transaction(async (tx) => {
-      await lockSlot(tx, retreatId, slotStart, [fromUserId, toUserId]);
-      const [fromAttendance, toAttendance, retreat, conflict] = await Promise.all([
+      const [fromAttendance, toAttendance, retreat] = await Promise.all([
         tx.retreatAttendance.findUnique({ where: { userId_retreatId: { userId: fromUserId, retreatId } } }),
         tx.retreatAttendance.findUnique({ where: { userId_retreatId: { userId: toUserId, retreatId } } }),
-        tx.retreat.findUnique({ where: { id: retreatId }, select: { blockedSlots: true } }),
-        tx.meetingRequest.findFirst({
+        tx.retreat.findUnique({ where: { id: retreatId } }),
+      ]);
+      if (!fromAttendance || !toAttendance) throw new Error("Both users must be retreat attendees.");
+      if (!retreat) throw new Error("Retreat not found.");
+
+      // A 1:1 always runs the full meeting duration, which can span more than
+      // one base-grid slot when the display granularity is finer than that.
+      const meetingSlots = meetingSlotStarts(slotStart, retreat);
+      for (const slot of meetingSlots) {
+        await lockSlot(tx, retreatId, slot, [fromUserId, toUserId]);
+      }
+      const blocked = new Set(retreat.blockedSlots ?? []);
+      for (const slot of meetingSlots) {
+        const iso = slot.toISOString();
+        if (blocked.has(iso)) throw new Error("That slot is blocked.");
+        const conflict = await tx.meetingRequest.findFirst({
           where: {
             retreatId,
-            slotStart,
+            slotStart: slot,
             status: "accepted",
             OR: [
               { fromUserId },
@@ -38,12 +52,9 @@ export async function createAdminMeeting(
               { toUserId },
             ],
           },
-        }),
-      ]);
-      if (!fromAttendance || !toAttendance) throw new Error("Both users must be retreat attendees.");
-      if (retreat?.blockedSlots.includes(slotStart.toISOString()))
-        throw new Error("That slot is blocked.");
-      if (conflict) throw new Error("One or both already have a meeting at that time.");
+        });
+        if (conflict) throw new Error("One or both already have a meeting at that time.");
+      }
 
       const meeting = await tx.meetingRequest.create({
         data: {
@@ -55,11 +66,11 @@ export async function createAdminMeeting(
           assignedByAdmin: true,
         },
       });
-      // Cancel any pending requests at this slot for either party
+      // Cancel any pending requests overlapping this window for either party
       await tx.meetingRequest.updateMany({
         where: {
           retreatId,
-          slotStart,
+          slotStart: { in: meetingSlots },
           status: "pending",
           id: { not: meeting.id },
           OR: [

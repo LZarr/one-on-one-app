@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { notifyNewRequest } from "@/lib/notifications";
-import { getRetreat, nowInRetreatTz } from "@/lib/config";
+import { getRetreat, nowInRetreatTz, getDayHoursMap, generateSlots, meetingSlotStarts } from "@/lib/config";
 import { lockSlot } from "@/lib/booking";
 
 const schema = z.object({
@@ -36,63 +36,75 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  if ((retreat.blockedSlots ?? []).includes(slotStart.toISOString())) {
-    return NextResponse.json(
-      { error: "That slot has been blocked by the retreat admin." },
-      { status: 400 },
-    );
+
+  // A 1:1 always runs the full MEETING_DURATION_MINUTES, which may span several
+  // base-grid slots when the retreat's display granularity is finer than that
+  // (e.g. a 15-minute grid needs 2 slots for a 30-minute meeting). Every one of
+  // those slots must be a real, open, unblocked slot for both people.
+  const dayHours = await getDayHoursMap(s.retreatId);
+  const validSlots = new Set(generateSlots(retreat, dayHours).map((d) => d.toISOString()));
+  const meetingSlots = meetingSlotStarts(slotStart, retreat);
+  const blocked = new Set(retreat.blockedSlots ?? []);
+  for (const slot of meetingSlots) {
+    const iso = slot.toISOString();
+    if (!validSlots.has(iso)) {
+      return NextResponse.json(
+        { error: "That time doesn't leave room for a full 30-minute meeting." },
+        { status: 400 },
+      );
+    }
+    if (blocked.has(iso)) {
+      return NextResponse.json(
+        { error: "That slot has been blocked by the retreat admin." },
+        { status: 400 },
+      );
+    }
   }
 
   // Capture narrowed values for use inside transaction closure
   const userId = s.userId;
   const retreatId = s.retreatId;
+  const toUserId = parsed.data.toUserId;
 
   // Validate and create inside a transaction to prevent double-booking
   let created;
   try {
     created = await prisma.$transaction(async (tx) => {
-      await lockSlot(tx, retreatId, slotStart, [userId, parsed.data.toUserId]);
-      const [fromAvail, toAvail, conflict] = await Promise.all([
-        tx.availability.findUnique({
-          where: {
-            userId_retreatId_slotStart: {
-              userId,
+      for (const slot of meetingSlots) {
+        await lockSlot(tx, retreatId, slot, [userId, toUserId]);
+      }
+
+      for (const slot of meetingSlots) {
+        const [fromAvail, toAvail, conflict] = await Promise.all([
+          tx.availability.findUnique({
+            where: { userId_retreatId_slotStart: { userId, retreatId, slotStart: slot } },
+          }),
+          tx.availability.findUnique({
+            where: { userId_retreatId_slotStart: { userId: toUserId, retreatId, slotStart: slot } },
+          }),
+          tx.meetingRequest.findFirst({
+            where: {
               retreatId,
-              slotStart,
+              slotStart: slot,
+              status: { in: ["accepted", "pending"] },
+              OR: [
+                { fromUserId: userId },
+                { toUserId: userId },
+                { fromUserId: toUserId },
+                { toUserId: toUserId },
+              ],
             },
-          },
-        }),
-        tx.availability.findUnique({
-          where: {
-            userId_retreatId_slotStart: {
-              userId: parsed.data.toUserId,
-              retreatId,
-              slotStart,
-            },
-          },
-        }),
-        tx.meetingRequest.findFirst({
-          where: {
-            retreatId,
-            slotStart,
-            status: { in: ["accepted", "pending"] },
-            OR: [
-              { fromUserId: userId },
-              { toUserId: userId },
-              { fromUserId: parsed.data.toUserId },
-              { toUserId: parsed.data.toUserId },
-            ],
-          },
-        }),
-      ]);
-      if (!fromAvail || !toAvail) throw new Error("Both users must mark this slot available.");
-      if (conflict) throw new Error("That time is no longer available.");
+          }),
+        ]);
+        if (!fromAvail || !toAvail) throw new Error("Both users must mark this full 30 minutes available.");
+        if (conflict) throw new Error("That time is no longer available.");
+      }
 
       return tx.meetingRequest.create({
         data: {
           retreatId,
           fromUserId: userId,
-          toUserId: parsed.data.toUserId,
+          toUserId,
           slotStart,
           status: "pending",
           message: parsed.data.message,

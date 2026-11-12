@@ -4,6 +4,22 @@ import type { Retreat } from "@prisma/client";
 
 export type RetreatConfig = Retreat;
 
+// 1:1s are always 30 minutes long regardless of the retreat's display/browsing
+// slot granularity (which controls how finely the schedule and agenda overlay
+// subdivide time, not how long a meeting actually runs).
+export const MEETING_DURATION_MINUTES = 30;
+
+export function getMeetingSlotCount(retreat: RetreatConfig): number {
+  return Math.max(1, Math.round(MEETING_DURATION_MINUTES / retreat.granularityMinutes));
+}
+
+// All the base-grid slot starts a meeting beginning at `slotStart` occupies.
+export function meetingSlotStarts(slotStart: Date, retreat: RetreatConfig): Date[] {
+  const count = getMeetingSlotCount(retreat);
+  const stepMs = retreat.granularityMinutes * 60 * 1000;
+  return Array.from({ length: count }, (_, i) => new Date(slotStart.getTime() + i * stepMs));
+}
+
 export async function getActiveRetreats(): Promise<RetreatConfig[]> {
   return prisma.retreat.findMany({ where: { active: true }, orderBy: { createdAt: "asc" } });
 }

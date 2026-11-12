@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
-import { getRetreat, generateSlots, groupSlotsByDay, nowInRetreatTz, getDayHoursMap } from "@/lib/config";
+import { getRetreat, generateSlots, groupSlotsByDay, nowInRetreatTz, getDayHoursMap, meetingSlotStarts } from "@/lib/config";
 import {
   getMyAvailability,
   ensureDefaultAvailability,
@@ -55,7 +55,6 @@ export default async function SchedulePage() {
   > = {};
 
   for (const r of allRequests) {
-    const iso = r.slotStart.toISOString();
     const isIncoming = r.toUserId === s.userId && r.status === "pending";
     const isOutgoing = r.fromUserId === s.userId && r.status === "pending";
     const isConfirmed = r.status === "accepted";
@@ -63,14 +62,23 @@ export default async function SchedulePage() {
     if (!isIncoming && !isOutgoing && !isConfirmed) continue;
 
     const other = r.fromUserId === s.userId ? r.to : r.from;
-    slotMeetings[iso] = {
+    const entry = {
       requestId: r.id,
       otherPersonName: other.name || "someone",
       otherPersonId: other.id,
-      type: isConfirmed ? "confirmed" : isIncoming ? "incoming" : "outgoing",
+      type: (isConfirmed ? "confirmed" : isIncoming ? "incoming" : "outgoing") as
+        | "confirmed"
+        | "incoming"
+        | "outgoing",
       assignedByAdmin: r.assignedByAdmin,
       message: r.message,
     };
+    // A 1:1 always runs the full meeting duration, which can span more than one
+    // base-grid slot when the display granularity is finer than that — mark
+    // every slot it occupies, not just the one it was booked at.
+    for (const slot of meetingSlotStarts(r.slotStart, retreat)) {
+      slotMeetings[slot.toISOString()] = entry;
+    }
   }
 
   return (
