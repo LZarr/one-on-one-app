@@ -283,7 +283,7 @@ export default function OverlapGrid({
         <div key={iso} className={`${base} border-emerald-200 bg-emerald-50 ${hlCls}`}>
           <span className="text-xs text-emerald-700 w-24 shrink-0 font-semibold">{meetingTimeRange(p)}</span>
           <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-          <span className="text-sm font-medium text-emerald-900 truncate flex-1 text-center">
+          <span className="text-sm font-medium text-emerald-900 truncate flex-1">
             Meeting with {toUserName}
           </span>
           <div className="flex self-stretch shrink-0 w-[72px] border-l border-emerald-200">
