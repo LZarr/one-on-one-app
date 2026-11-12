@@ -405,11 +405,18 @@ export default function CalendarView({
       // (cancelling the gap between blocks) and square off that corner.
       const blockContinuesFromPrev = chips.some((c) => c.top === 0 && c.continuesFromPrev);
       const blockContinuesToNext = chips.some((c) => c.top + c.height === runIsos.length * ROW_H && c.continuesToNext);
-      const blockRoundCls = `${blockContinuesFromPrev ? "rounded-t-none -mt-0.5" : "rounded-t-md"} ${
+      const blockRoundCls = `${blockContinuesFromPrev ? "rounded-t-none" : "rounded-t-md"} ${
         blockContinuesToNext ? "rounded-b-none" : "rounded-b-md"
       }`;
       return (
-        <div key={iso} className={`${tint!.bg} ${blockRoundCls} overflow-hidden relative`}>
+        <div
+          key={iso}
+          // The parent's `space-y-0.5` sets margin-top via a `> * + *` selector,
+          // which beats a plain `-mt-0.5` utility class on specificity — an
+          // inline style is the only way to actually cancel that gap here.
+          style={blockContinuesFromPrev ? { marginTop: "-2px" } : undefined}
+          className={`${tint!.bg} ${blockRoundCls} overflow-hidden relative`}
+        >
           {runIsos.map((runIso, i) => {
             const m = meetings[runIso];
             // Book/Block live in this row's own flex row (same as every other
