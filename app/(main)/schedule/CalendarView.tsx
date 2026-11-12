@@ -413,14 +413,20 @@ export default function CalendarView({
             }
             if (c.kind === "available") {
               return (
-                <button
-                  key={i}
-                  style={posStyle}
-                  onClick={() => router.push(`/attendees?slot=${c.iso}`)}
-                  className="flex items-center justify-center rounded-md border border-stone-300 bg-white/90 w-1/3 text-xs font-semibold text-stone-900 underline hover:bg-stone-50"
-                >
-                  Book
-                </button>
+                <div key={i} style={posStyle} className="flex items-center gap-3">
+                  <button
+                    onClick={() => router.push(`/attendees?slot=${c.iso}`)}
+                    className="text-sm text-stone-900 hover:text-accent-600 cursor-pointer font-medium"
+                  >
+                    Book
+                  </button>
+                  <button
+                    onClick={() => toggleBlock(c.iso)}
+                    className="text-stone-300 text-xs font-medium hover:text-stone-600"
+                  >
+                    Block
+                  </button>
+                </div>
               );
             }
             return (
@@ -428,7 +434,7 @@ export default function CalendarView({
                 key={i}
                 style={posStyle}
                 onClick={() => toggleBlock(c.iso)}
-                className="flex items-center justify-center rounded-md border border-stone-200 bg-white/80 w-1/3 text-xs font-medium text-stone-400 hover:text-stone-600"
+                className="flex items-center text-stone-300 text-xs font-medium hover:text-stone-600"
               >
                 Unblock
               </button>
@@ -689,9 +695,9 @@ export default function CalendarView({
           <span className="text-xs text-stone-500 w-16 shrink-0 font-medium">{time}</span>
           <button
             onClick={() => router.push(`/attendees?slot=${iso}`)}
-            className="text-sm text-stone-900 truncate flex-1 text-left underline hover:text-accent-600 cursor-pointer font-medium"
+            className="text-sm text-stone-900 truncate flex-1 text-left hover:text-accent-600 cursor-pointer font-medium"
           >
-            Available
+            Book
           </button>
           <button
             onClick={() => toggleBlock(iso)}
