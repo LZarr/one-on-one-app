@@ -464,7 +464,18 @@ export default function CalendarView({
             );
           })}
           {chips.map((c, i) => {
-            const posStyle = { position: "absolute" as const, top: c.top + 3, height: c.height - 6, right: 4 };
+            // The usual 3px breathing room above/below a chip has to disappear
+            // on whichever edge touches the other half of a straddling
+            // meeting — otherwise that inset alone still shows as a gap even
+            // once the border/radius on that edge is gone.
+            const topInset = c.continuesFromPrev ? 0 : 3;
+            const bottomInset = c.continuesToNext ? 0 : 3;
+            const posStyle = {
+              position: "absolute" as const,
+              top: c.top + topInset,
+              height: c.height - topInset - bottomInset,
+              right: 4,
+            };
             // Only let the name wrap to a second line when the chip actually
             // has room for it (spans 2+ rows) — a 1-row chip is too short for
             // two lines and the overflow just bleeds into the row below it.
