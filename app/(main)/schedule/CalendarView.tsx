@@ -39,21 +39,19 @@ type SlotState =
   | { kind: "blocked" }
   | { kind: "past" };
 
-type AgendaCategory = "meal" | "oneOnOne" | "talk" | "evening";
+type AgendaCategory = "meal" | "oneOnOne" | "other";
 
 function categorizeAgendaItem(title: string): AgendaCategory {
   const t = title.toLowerCase();
-  if (/breakfast|lunch|dinner/.test(t)) return "meal";
+  if (/breakfast|lunch|dinner|social time/.test(t)) return "meal";
   if (/1:1/.test(t)) return "oneOnOne";
-  if (/reflection session|closing session|saturday night announcement|social time/.test(t)) return "evening";
-  return "talk";
+  return "other";
 }
 
 const AGENDA_CATEGORY_STYLES: Record<AgendaCategory, { bg: string; text: string; dot: string; label: string }> = {
-  meal: { bg: "bg-[#E6F4F3]", text: "text-[#3c6b67]", dot: "bg-[#E6F4F3]", label: "dinner / meal" },
+  meal: { bg: "bg-[#E6F4F3]", text: "text-[#3c6b67]", dot: "bg-[#E6F4F3]", label: "meals & social time" },
   oneOnOne: { bg: "bg-[#BCE0E3]", text: "text-[#1f5457]", dot: "bg-[#BCE0E3]", label: "1:1 prep & slots" },
-  talk: { bg: "bg-[#A8CED1]", text: "text-[#1f4345]", dot: "bg-[#A8CED1]", label: "talks & day sessions" },
-  evening: { bg: "bg-[#7BAEB0]", text: "text-[#1f4345]", dot: "bg-[#7BAEB0]", label: "evening sessions & social time" },
+  other: { bg: "bg-[#A8CED1]", text: "text-[#1f4345]", dot: "bg-[#A8CED1]", label: "everything else" },
 };
 
 // Keep a long talk's row to one line: fall back to "Talk: <speaker>" when the full
