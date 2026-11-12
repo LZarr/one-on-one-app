@@ -57,7 +57,20 @@ export default async function ProfilePage() {
 
   const [retreats, user] = await Promise.all([
     getUserRetreats(s.userId, s.retreatId),
-    prisma.user.findUnique({ where: { id: s.userId } }),
+    prisma.user.findUnique({
+      where: { id: s.userId },
+      select: {
+        id: true,
+        name: true,
+        pronouns: true,
+        school: true,
+        bio: true,
+        canHelpWith: true,
+        canBeHelpedWith: true,
+        keyCrux: true,
+        personalLink: true,
+      },
+    }),
   ]);
 
   return (

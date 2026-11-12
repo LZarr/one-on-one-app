@@ -26,7 +26,7 @@ export async function getSession() {
   const cookieStore = await cookies();
   const s = await getIronSession<SessionData>(cookieStore, sessionOptions);
   if (s.userId) {
-    const user = await prisma.user.findUnique({ where: { id: s.userId } });
+    const user = await prisma.user.findUnique({ where: { id: s.userId }, select: { id: true } });
     if (!user) {
       delete s.userId;
       delete s.email;

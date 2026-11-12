@@ -18,7 +18,20 @@ export default async function AttendeeProfile({
   if (!s.userId || !s.retreatId) redirect("/login");
   const { id } = await params;
   const { slot: preselectedSlot } = await searchParams;
-  const user = await prisma.user.findUnique({ where: { id } });
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      name: true,
+      pronouns: true,
+      school: true,
+      bio: true,
+      canHelpWith: true,
+      canBeHelpedWith: true,
+      keyCrux: true,
+      personalLink: true,
+    },
+  });
   if (!user) notFound();
   const member = await prisma.retreatAttendance.findUnique({
     where: { userId_retreatId: { userId: id, retreatId: s.retreatId } },
