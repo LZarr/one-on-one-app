@@ -86,7 +86,7 @@ export default function CalendarView({
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState<string | null>(null);
   const [showPendingModal, setShowPendingModal] = useState(false);
-  const [showAgenda, setShowAgenda] = useState(false);
+  const [showAgenda, setShowAgenda] = useState(true);
   const adminBlocked = new Set(blockedSlots);
 
   const agendaRanges = useMemo(
@@ -289,20 +289,35 @@ export default function CalendarView({
     // Renders one merged, agenda-tinted block. A confirmed meeting inside this
     // block (which may start partway through it, not necessarily at the top)
     // gets a name tag sized to the full span of slots it actually occupies,
-    // instead of a tag confined to a single 15-minute row.
+    // instead of a tag confined to a single 15-minute row. A row with no
+    // meeting still needs to stay actionable (book it, or unblock it) even
+    // while the agenda overlay is on, so those get their own chip too.
     const ROW_H = 26;
+    type Chip =
+      | { kind: "meeting"; top: number; height: number; name: string }
+      | { kind: "available"; top: number; height: number; iso: string }
+      | { kind: "blocked"; top: number; height: number; iso: string };
     function tintedBlock() {
       const runIsos = getAgendaRunIsos(iso);
-      const chips: { top: number; height: number; name: string }[] = [];
+      const chips: Chip[] = [];
       runIsos.forEach((runIso, i) => {
         const m = meetings[runIso];
-        if (m?.type !== "confirmed" || isMeetingContinuation(runIso)) return;
-        let span = 0;
-        for (const mIso of getMeetingRunIsos(runIso)) {
-          if (runIsos.includes(mIso)) span++;
-          else break;
+        if (m) {
+          if (m.type !== "confirmed" || isMeetingContinuation(runIso)) return;
+          let span = 0;
+          for (const mIso of getMeetingRunIsos(runIso)) {
+            if (runIsos.includes(mIso)) span++;
+            else break;
+          }
+          chips.push({ kind: "meeting", top: i * ROW_H, height: Math.max(1, span) * ROW_H, name: m.otherPersonName });
+          return;
         }
-        chips.push({ top: i * ROW_H, height: Math.max(1, span) * ROW_H, name: m.otherPersonName });
+        const rowState = classify(runIso);
+        if (rowState.kind === "available") {
+          chips.push({ kind: "available", top: i * ROW_H, height: ROW_H, iso: runIso });
+        } else if (rowState.kind === "blocked" && !adminBlocked.has(runIso)) {
+          chips.push({ kind: "blocked", top: i * ROW_H, height: ROW_H, iso: runIso });
+        }
       });
       // Only reserve room for a chip on the label's own row if one actually
       // overlaps it — otherwise the label gets padded/truncated for a chip
@@ -324,16 +339,43 @@ export default function CalendarView({
               )}
             </div>
           ))}
-          {chips.map((c, i) => (
-            <div
-              key={i}
-              style={{ position: "absolute", top: c.top + 3, height: c.height - 6, right: 4 }}
-              className="flex items-center gap-1.5 px-2.5 rounded-md border border-emerald-200 bg-emerald-50 max-w-[50%]"
-            >
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-              <span className="text-xs font-medium text-emerald-900 truncate">{c.name}</span>
-            </div>
-          ))}
+          {chips.map((c, i) => {
+            const posStyle = { position: "absolute" as const, top: c.top + 3, height: c.height - 6, right: 4 };
+            if (c.kind === "meeting") {
+              return (
+                <div
+                  key={i}
+                  style={posStyle}
+                  className="flex items-center justify-center gap-1.5 px-2.5 rounded-md border border-emerald-200 bg-emerald-50 w-1/3"
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                  <span className="text-xs font-medium text-emerald-900 truncate">{c.name}</span>
+                </div>
+              );
+            }
+            if (c.kind === "available") {
+              return (
+                <button
+                  key={i}
+                  style={posStyle}
+                  onClick={() => router.push(`/attendees?slot=${c.iso}`)}
+                  className="flex items-center justify-center rounded-md border border-stone-300 bg-white/90 w-1/3 text-xs font-semibold text-stone-900 underline hover:bg-stone-50"
+                >
+                  Book
+                </button>
+              );
+            }
+            return (
+              <button
+                key={i}
+                style={posStyle}
+                onClick={() => toggleBlock(c.iso)}
+                className="flex items-center justify-center rounded-md border border-stone-200 bg-white/80 w-1/3 text-xs font-medium text-stone-400 hover:text-stone-600"
+              >
+                Unblock
+              </button>
+            );
+          })}
         </div>
       );
     }
@@ -400,7 +442,7 @@ export default function CalendarView({
           ))}
           <div
             style={{ position: "absolute", top: 3, height: runIsos.length * 26 - 6, right: 4 }}
-            className="flex items-center gap-1.5 px-2.5 rounded-md border border-emerald-200 bg-emerald-50 max-w-[50%]"
+            className="flex items-center justify-center gap-1.5 px-2.5 rounded-md border border-emerald-200 bg-emerald-50 w-1/3"
           >
             <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
             <span className="text-xs font-medium text-emerald-900 truncate">{state.meeting.otherPersonName}</span>
@@ -547,20 +589,13 @@ export default function CalendarView({
     }
 
     if (state.kind === "available") {
-      if (showAgenda) {
-        if (tint) return tintedBlock();
-        return wrap(
-          <div className={`${flatBase} ${flatHlCls}`}>
-            <span className="text-xs text-stone-300 w-16 shrink-0 font-medium">{time}</span>
-          </div>,
-        );
-      }
+      if (tint) return tintedBlock();
       return wrap(
         <div className={`${flatBase} rounded-md hover:bg-stone-50 ${flatHlCls}`}>
           <span className="text-xs text-stone-500 w-16 shrink-0 font-medium">{time}</span>
           <button
             onClick={() => router.push(`/attendees?slot=${iso}`)}
-            className="text-sm text-stone-500 truncate flex-1 text-left hover:text-accent-600 cursor-pointer font-medium"
+            className="text-sm text-stone-900 truncate flex-1 text-left underline hover:text-accent-600 cursor-pointer font-medium"
           >
             Available
           </button>
@@ -575,14 +610,7 @@ export default function CalendarView({
     }
 
     const isAdminBlocked = adminBlocked.has(iso);
-    if (showAgenda) {
-      if (tint) return tintedBlock();
-      return wrap(
-        <div className={`${flatBase} ${flatHlCls}`}>
-          <span className="text-xs text-stone-300 w-16 shrink-0 font-medium">{time}</span>
-        </div>,
-      );
-    }
+    if (tint) return tintedBlock();
     return wrap(
       <div className={`${flatBase} rounded-md hover:bg-stone-50 ${flatHlCls}`}>
         <span className="text-xs text-stone-300 w-16 shrink-0 font-medium">{time}</span>
