@@ -416,7 +416,7 @@ export default function CalendarView({
                 <div key={i} style={posStyle} className="flex items-center gap-3">
                   <button
                     onClick={() => router.push(`/attendees?slot=${c.iso}`)}
-                    className="text-sm text-stone-900 hover:text-accent-600 cursor-pointer font-medium"
+                    className="text-stone-300 text-xs font-medium hover:text-stone-600"
                   >
                     Book
                   </button>
