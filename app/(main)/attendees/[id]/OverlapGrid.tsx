@@ -35,6 +35,9 @@ type SlotState =
   | "pendingIncoming"
   | "confirmed"
   | "booked"
+  | "myBooked"
+  | "theirBooked"
+  | "bothBooked"
   | "none";
 
 export default function OverlapGrid({
@@ -178,7 +181,11 @@ export default function OverlapGrid({
       if (p.status === "accepted") return "confirmed";
       return p.direction === "outgoing" ? "pendingOutgoing" : "pendingIncoming";
     }
-    if (myBookedSet.has(iso) || theirBookedSet.has(iso)) return "booked";
+    const myHasOther = myBookedSet.has(iso);
+    const theirHasOther = theirBookedSet.has(iso);
+    if (myHasOther && theirHasOther) return "bothBooked";
+    if (myHasOther) return "myBooked";
+    if (theirHasOther) return "theirBooked";
     if (blockedSet.has(iso)) return "none";
     if (mineSet.has(iso) && theirsSet.has(iso)) {
       // A 1:1 always runs the full meeting duration, which can span more than
@@ -382,10 +389,18 @@ export default function OverlapGrid({
       );
     }
 
+    const unavailableLabel =
+      state === "myBooked"
+        ? "You're unavailable"
+        : state === "theirBooked"
+          ? "They're unavailable"
+          : state === "bothBooked"
+            ? "Both unavailable"
+            : "Unavailable";
     return (
       <div key={iso} className={`${base} border-stone-100 bg-stone-50 opacity-50 ${hlCls}`}>
         <span className="text-xs text-stone-400 w-16 shrink-0 font-medium">{time}</span>
-        <span className="text-sm text-stone-400 truncate flex-1">Unavailable</span>
+        <span className="text-sm text-stone-400 truncate flex-1">{unavailableLabel}</span>
       </div>
     );
   }
