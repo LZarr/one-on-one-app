@@ -416,13 +416,13 @@ export default function CalendarView({
                 <div key={i} style={posStyle} className="flex items-center gap-3">
                   <button
                     onClick={() => router.push(`/attendees?slot=${c.iso}`)}
-                    className="text-stone-300 text-xs font-medium hover:text-stone-600"
+                    className="text-sm text-stone-900 font-medium hover:text-accent-600"
                   >
                     Book
                   </button>
                   <button
                     onClick={() => toggleBlock(c.iso)}
-                    className="text-stone-300 text-xs font-medium hover:text-stone-600"
+                    className="text-sm text-stone-900 font-medium hover:text-accent-600"
                   >
                     Block
                   </button>
@@ -693,18 +693,21 @@ export default function CalendarView({
       return wrap(
         <div className={`${flatBase} rounded-md hover:bg-stone-50 ${flatHlCls}`}>
           <span className="text-xs text-stone-500 w-16 shrink-0 font-medium">{time}</span>
-          <button
-            onClick={() => router.push(`/attendees?slot=${iso}`)}
-            className="text-sm text-stone-900 truncate flex-1 text-left hover:text-accent-600 cursor-pointer font-medium"
-          >
-            Book
-          </button>
-          <button
-            onClick={() => toggleBlock(iso)}
-            className="text-stone-300 text-xs font-medium hover:text-stone-600 shrink-0 pr-2"
-          >
-            Block
-          </button>
+          <span className="flex-1" />
+          <div className="flex items-center gap-3 shrink-0 pr-2">
+            <button
+              onClick={() => router.push(`/attendees?slot=${iso}`)}
+              className="text-sm text-stone-900 font-medium hover:text-accent-600"
+            >
+              Book
+            </button>
+            <button
+              onClick={() => toggleBlock(iso)}
+              className="text-sm text-stone-900 font-medium hover:text-accent-600"
+            >
+              Block
+            </button>
+          </div>
         </div>,
       );
     }
