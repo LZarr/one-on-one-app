@@ -300,47 +300,34 @@ export default function CalendarView({
     // meeting still needs to stay actionable (book it, or unblock it) even
     // while the agenda overlay is on, so those get their own chip too.
     const ROW_H = 26;
-    type Chip =
-      | {
-          kind: "meeting";
-          top: number;
-          height: number;
-          name: string;
-          requestId: string;
-          startIso: string;
-          isPast: boolean;
-        }
-      | { kind: "available"; top: number; height: number; iso: string }
-      | { kind: "blocked"; top: number; height: number; iso: string };
+    type MeetingChip = {
+      top: number;
+      height: number;
+      name: string;
+      requestId: string;
+      startIso: string;
+      isPast: boolean;
+    };
     function tintedBlock() {
       const runIsos = getAgendaRunIsos(iso);
-      const chips: Chip[] = [];
+      const chips: MeetingChip[] = [];
       runIsos.forEach((runIso, i) => {
         const m = meetings[runIso];
-        if (m) {
-          if (m.type !== "confirmed" || isMeetingContinuation(runIso)) return;
-          let span = 0;
-          for (const mIso of getMeetingRunIsos(runIso)) {
-            if (runIsos.includes(mIso)) span++;
-            else break;
-          }
-          chips.push({
-            kind: "meeting",
-            top: i * ROW_H,
-            height: Math.max(1, span) * ROW_H,
-            name: m.otherPersonName,
-            requestId: m.requestId,
-            startIso: runIso,
-            isPast: new Date(runIso).getTime() < nowMs,
-          });
-          return;
+        if (!m) return;
+        if (m.type !== "confirmed" || isMeetingContinuation(runIso)) return;
+        let span = 0;
+        for (const mIso of getMeetingRunIsos(runIso)) {
+          if (runIsos.includes(mIso)) span++;
+          else break;
         }
-        const rowState = classify(runIso);
-        if (rowState.kind === "available") {
-          chips.push({ kind: "available", top: i * ROW_H, height: ROW_H, iso: runIso });
-        } else if (rowState.kind === "blocked" && !adminBlocked.has(runIso)) {
-          chips.push({ kind: "blocked", top: i * ROW_H, height: ROW_H, iso: runIso });
-        }
+        chips.push({
+          top: i * ROW_H,
+          height: Math.max(1, span) * ROW_H,
+          name: m.otherPersonName,
+          requestId: m.requestId,
+          startIso: runIso,
+          isPast: new Date(runIso).getTime() < nowMs,
+        });
       });
       // Only reserve room for a chip on the label's own row if one actually
       // overlaps it — otherwise the label gets padded/truncated for a chip
@@ -348,95 +335,97 @@ export default function CalendarView({
       const labelNeedsClearance = chips.some((c) => c.top === 0);
       return (
         <div key={iso} className={`${tint!.bg} rounded-md overflow-hidden relative`}>
-          {runIsos.map((runIso, i) => (
-            <div key={runIso} className="flex items-center gap-1 px-1 text-sm" style={{ height: ROW_H }}>
-              <span className={`text-xs w-16 shrink-0 font-medium ${tint!.text}`}>
-                {formatSlotTime(new Date(runIso))}
-              </span>
-              {i === 0 && (
-                <span
-                  className={`text-sm font-medium min-w-0 flex-1 truncate ${labelNeedsClearance ? "pr-20" : ""} ${tint!.text}`}
-                >
-                  {agenda!.label}
+          {runIsos.map((runIso, i) => {
+            const m = meetings[runIso];
+            // Book/Block live in this row's own flex row (same as every other
+            // row on the page) instead of an absolutely-positioned overlay, so
+            // they land on exactly the same baseline as the time label next to
+            // them — a separately-positioned overlay drifted a few px off.
+            const rowState = !m ? classify(runIso) : null;
+            return (
+              <div key={runIso} className="flex items-center gap-1 px-1 text-sm" style={{ height: ROW_H }}>
+                <span className={`text-xs w-16 shrink-0 font-medium ${tint!.text}`}>
+                  {formatSlotTime(new Date(runIso))}
                 </span>
-              )}
-            </div>
-          ))}
+                {i === 0 && (
+                  <span
+                    className={`text-sm font-medium min-w-0 flex-1 truncate ${labelNeedsClearance ? "pr-20" : ""} ${tint!.text}`}
+                  >
+                    {agenda!.label}
+                  </span>
+                )}
+                {rowState?.kind === "available" && (
+                  <div className="flex items-center gap-3 shrink-0 pr-2 ml-auto">
+                    <button
+                      onClick={() => router.push(`/attendees?slot=${runIso}`)}
+                      className="text-sm text-stone-900 font-medium hover:text-accent-600"
+                    >
+                      Book
+                    </button>
+                    <button
+                      onClick={() => toggleBlock(runIso)}
+                      className="text-sm text-stone-900 font-medium hover:text-accent-600"
+                    >
+                      Block
+                    </button>
+                  </div>
+                )}
+                {rowState?.kind === "blocked" && !adminBlocked.has(runIso) && (
+                  <button
+                    onClick={() => toggleBlock(runIso)}
+                    className="text-sm text-stone-900 font-medium hover:text-accent-600 shrink-0 pr-2 ml-auto"
+                  >
+                    Unblock
+                  </button>
+                )}
+              </div>
+            );
+          })}
           {chips.map((c, i) => {
             const posStyle = { position: "absolute" as const, top: c.top + 3, height: c.height - 6, right: 4 };
-            if (c.kind === "meeting") {
-              if (c.isPast) {
-                return (
-                  <div
-                    key={i}
-                    style={posStyle}
-                    className="flex items-center justify-center gap-1.5 px-2.5 rounded-md border border-emerald-200 bg-emerald-50 w-1/3"
-                  >
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                    <span className="text-xs font-medium text-emerald-900 truncate">{c.name}</span>
-                  </div>
-                );
-              }
-              const confirming = confirmingCancel === c.requestId;
+            if (c.isPast) {
               return (
-                <button
+                <div
                   key={i}
                   style={posStyle}
-                  onClick={() => {
-                    if (confirming) {
-                      setConfirmingCancel(null);
-                      act(c.requestId, "cancel", c.startIso);
-                    } else {
-                      setConfirmingCancel(c.requestId);
-                    }
-                  }}
-                  onBlur={() => {
-                    if (confirming) setConfirmingCancel(null);
-                  }}
-                  disabled={busy === c.requestId}
-                  className={`flex items-center justify-center gap-1.5 px-2.5 rounded-md border w-1/3 ${
-                    confirming
-                      ? "border-stone-300 bg-stone-100"
-                      : "border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
-                  }`}
+                  className="flex items-center justify-center gap-1.5 px-2.5 rounded-md border border-emerald-200 bg-emerald-50 w-1/3"
                 >
-                  {confirming ? (
-                    <span className="text-xs font-semibold text-stone-800">Cancel?</span>
-                  ) : (
-                    <>
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                      <span className="text-xs font-medium text-emerald-900 truncate">{c.name}</span>
-                    </>
-                  )}
-                </button>
-              );
-            }
-            if (c.kind === "available") {
-              return (
-                <div key={i} style={posStyle} className="flex items-center gap-3">
-                  <button
-                    onClick={() => router.push(`/attendees?slot=${c.iso}`)}
-                    className="text-sm text-stone-900 font-medium hover:text-accent-600"
-                  >
-                    Book
-                  </button>
-                  <button
-                    onClick={() => toggleBlock(c.iso)}
-                    className="text-sm text-stone-900 font-medium hover:text-accent-600"
-                  >
-                    Block
-                  </button>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                  <span className="text-xs font-medium text-emerald-900 truncate">{c.name}</span>
                 </div>
               );
             }
+            const confirming = confirmingCancel === c.requestId;
             return (
               <button
                 key={i}
                 style={posStyle}
-                onClick={() => toggleBlock(c.iso)}
-                className="flex items-center text-stone-300 text-xs font-medium hover:text-stone-600"
+                onClick={() => {
+                  if (confirming) {
+                    setConfirmingCancel(null);
+                    act(c.requestId, "cancel", c.startIso);
+                  } else {
+                    setConfirmingCancel(c.requestId);
+                  }
+                }}
+                onBlur={() => {
+                  if (confirming) setConfirmingCancel(null);
+                }}
+                disabled={busy === c.requestId}
+                className={`flex items-center justify-center gap-1.5 px-2.5 rounded-md border w-1/3 ${
+                  confirming
+                    ? "border-stone-300 bg-stone-100"
+                    : "border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
+                }`}
               >
-                Unblock
+                {confirming ? (
+                  <span className="text-xs font-semibold text-stone-800">Cancel?</span>
+                ) : (
+                  <>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="text-xs font-medium text-emerald-900 truncate">{c.name}</span>
+                  </>
+                )}
               </button>
             );
           })}
