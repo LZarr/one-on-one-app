@@ -98,6 +98,18 @@ export default async function AboutPage() {
             </a>
             .
           </p>
+          <p>
+            Modified by{" "}
+            <a
+              href="https://www.linkedin.com/in/lily-zarr/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent-600 hover:text-accent-700 underline"
+            >
+              Lily Zarr
+            </a>
+            .
+          </p>
         </section>
 
         <section className="space-y-3">
