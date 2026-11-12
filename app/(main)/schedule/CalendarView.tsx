@@ -373,7 +373,7 @@ export default function CalendarView({
             <span className="text-[11px] text-stone-400 shrink-0 italic pr-3">missed</span>
           </div>
           {extraIsos.map((runIso) => (
-            <div key={runIso} className="flex items-center gap-2 pl-3 py-1 text-xs border-t border-stone-200 text-stone-400">
+            <div key={runIso} className="flex items-center gap-2 pl-3 py-1 text-xs text-stone-400">
               <span className="w-16 shrink-0 font-medium">{formatSlotTime(new Date(runIso))}</span>
             </div>
           ))}
@@ -456,7 +456,7 @@ export default function CalendarView({
             )}
           </div>
           {extraIsos.map((runIso) => (
-            <div key={runIso} className={`flex items-center gap-2 pl-3 py-1 text-xs border-t ${borderCls} ${timeCls}`}>
+            <div key={runIso} className={`flex items-center gap-2 pl-3 py-1 text-xs ${timeCls}`}>
               <span className="w-16 shrink-0 font-medium">{formatSlotTime(new Date(runIso))}</span>
             </div>
           ))}
@@ -504,7 +504,7 @@ export default function CalendarView({
             </div>
           </div>
           {extraIsos.map((runIso) => (
-            <div key={runIso} className="flex items-center gap-2 pl-3 py-1 text-xs border-t border-amber-200 text-amber-700">
+            <div key={runIso} className="flex items-center gap-2 pl-3 py-1 text-xs text-amber-700">
               <span className="w-16 shrink-0 font-medium">{formatSlotTime(new Date(runIso))}</span>
             </div>
           ))}
@@ -547,7 +547,7 @@ export default function CalendarView({
             </div>
           </div>
           {extraIsos.map((runIso) => (
-            <div key={runIso} className="flex items-center gap-2 pl-3 py-1 text-xs border-t border-stone-200 text-stone-500">
+            <div key={runIso} className="flex items-center gap-2 pl-3 py-1 text-xs text-stone-500">
               <span className="w-16 shrink-0 font-medium">{formatSlotTime(new Date(runIso))}</span>
             </div>
           ))}
