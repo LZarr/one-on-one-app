@@ -304,6 +304,10 @@ export default function CalendarView({
         }
         chips.push({ top: i * ROW_H, height: Math.max(1, span) * ROW_H, name: m.otherPersonName });
       });
+      // Only reserve room for a chip on the label's own row if one actually
+      // overlaps it — otherwise the label gets padded/truncated for a chip
+      // that isn't even there.
+      const labelNeedsClearance = chips.some((c) => c.top === 0);
       return (
         <div key={iso} className={`${tint!.bg} rounded-md overflow-hidden relative`}>
           {runIsos.map((runIso, i) => (
@@ -312,7 +316,9 @@ export default function CalendarView({
                 {formatSlotTime(new Date(runIso))}
               </span>
               {i === 0 && (
-                <span className={`text-sm font-medium min-w-0 flex-1 truncate pr-20 ${tint!.text}`}>
+                <span
+                  className={`text-sm font-medium min-w-0 flex-1 truncate ${labelNeedsClearance ? "pr-20" : ""} ${tint!.text}`}
+                >
                   {agenda!.label}
                 </span>
               )}
