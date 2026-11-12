@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import SwitchRetreatModal from "./profile/SwitchRetreatModal";
 import { switchRetreat } from "./actions";
+import Avatar from "../Avatar";
 
 type RetreatItem = { retreatId: string; name: string; isCurrent: boolean };
 
@@ -37,12 +38,14 @@ const profileIcon = (
 export default function AppNav({
   admin,
   adminHref = "/admin",
+  userId,
   name,
   email,
   retreats = [],
 }: {
   admin: boolean;
   adminHref?: string;
+  userId?: string;
   name?: string;
   email?: string;
   retreats?: RetreatItem[];
@@ -119,7 +122,9 @@ export default function AppNav({
               : "text-stone-500 hover:text-stone-700 hover:bg-stone-100"
           }`}
         >
-          <span className="flex h-5 items-center">{profileIcon}</span>
+          <span className="flex h-5 w-5 items-center justify-center">
+            {userId ? <Avatar userId={userId} name={name || "You"} size={20} /> : profileIcon}
+          </span>
         </button>
         {open && (
           <div

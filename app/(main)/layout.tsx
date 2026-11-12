@@ -34,6 +34,7 @@ export default async function AppLayout({
               <AppNav
                 admin={admin}
                 adminHref={`/admin/${session.retreatId}`}
+                userId={session.userId}
                 name={session.name}
                 email={session.email}
                 retreats={retreats}
