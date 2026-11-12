@@ -358,13 +358,13 @@ export default function CalendarView({
                   <div className="flex items-center gap-3 shrink-0 pr-2 ml-auto">
                     <button
                       onClick={() => router.push(`/attendees?slot=${runIso}`)}
-                      className="text-sm text-stone-900 font-medium hover:text-accent-600"
+                      className="text-xs text-stone-900 font-medium hover:text-accent-600"
                     >
                       Book
                     </button>
                     <button
                       onClick={() => toggleBlock(runIso)}
-                      className="text-sm text-stone-900 font-medium hover:text-accent-600"
+                      className="text-xs text-stone-900 font-medium hover:text-accent-600"
                     >
                       Block
                     </button>
@@ -373,7 +373,7 @@ export default function CalendarView({
                 {rowState?.kind === "blocked" && !adminBlocked.has(runIso) && (
                   <button
                     onClick={() => toggleBlock(runIso)}
-                    className="text-sm text-stone-900 font-medium hover:text-accent-600 shrink-0 pr-2 ml-auto"
+                    className="text-xs text-stone-900 font-medium hover:text-accent-600 shrink-0 pr-2 ml-auto"
                   >
                     Unblock
                   </button>
@@ -686,13 +686,13 @@ export default function CalendarView({
           <div className="flex items-center gap-3 shrink-0 pr-2">
             <button
               onClick={() => router.push(`/attendees?slot=${iso}`)}
-              className="text-sm text-stone-900 font-medium hover:text-accent-600"
+              className="text-xs text-stone-900 font-medium hover:text-accent-600"
             >
               Book
             </button>
             <button
               onClick={() => toggleBlock(iso)}
-              className="text-sm text-stone-900 font-medium hover:text-accent-600"
+              className="text-xs text-stone-900 font-medium hover:text-accent-600"
             >
               Block
             </button>
