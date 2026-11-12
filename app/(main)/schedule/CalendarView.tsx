@@ -243,7 +243,9 @@ export default function CalendarView({
     if (action === "accept") {
       updated[iso] = { ...updated[iso], type: "confirmed" };
     } else if (action === "decline" || action === "cancel") {
-      delete updated[iso];
+      for (const runIso of getMeetingRunIsos(iso)) {
+        delete updated[runIso];
+      }
     }
     setMeetings(updated);
     startTransition(() => router.refresh());
