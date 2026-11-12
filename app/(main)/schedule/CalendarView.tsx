@@ -253,8 +253,6 @@ export default function CalendarView({
     const state = classify(iso);
     const time = formatSlotTime(new Date(iso));
 
-    const base =
-      "flex items-center gap-2 pl-3 pr-0 py-0 text-sm min-h-[36px]";
     const flatBase = "flex items-center gap-1 px-1 py-1 text-sm min-h-[26px]";
     const hlCls = isHighlighted
       ? "ring-2 ring-amber-400/60 border-amber-300 bg-amber-50/40"
@@ -327,7 +325,7 @@ export default function CalendarView({
           {chips.map((c, i) => (
             <div
               key={i}
-              style={{ position: "absolute", top: c.top, height: c.height, right: 4 }}
+              style={{ position: "absolute", top: c.top + 3, height: c.height - 6, right: 4 }}
               className="flex items-center gap-1.5 px-2.5 rounded-md border border-emerald-200 bg-emerald-50 max-w-[50%]"
             >
               <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
@@ -363,20 +361,19 @@ export default function CalendarView({
     }
 
     if ((state.kind === "incoming" || state.kind === "outgoing") && state.isPast) {
-      const extraIsos = getMeetingRunIsos(iso).slice(1);
+      const runIsos = getMeetingRunIsos(iso);
       return wrap(
-        <div className={`rounded-md border overflow-hidden border-stone-200 bg-stone-50/60 opacity-90 ${hlCls}`}>
-          <div className={base}>
-            <span className="text-xs text-stone-400 w-16 shrink-0 font-medium">{time}</span>
-            <div className="w-2 h-2 rounded-full bg-stone-300 shrink-0" />
-            <span className="text-sm text-stone-500 truncate flex-1">{state.meeting.otherPersonName}</span>
-            <span className="text-[11px] text-stone-400 shrink-0 italic pr-3">missed</span>
+        <div className={`rounded-md border overflow-hidden flex items-center border-stone-200 bg-stone-50/60 opacity-90 ${hlCls}`}>
+          <div className="flex flex-col shrink-0 w-16">
+            {runIsos.map((runIso) => (
+              <div key={runIso} className="flex items-center pl-1" style={{ height: ROW_H }}>
+                <span className="text-xs text-stone-400 font-medium">{formatSlotTime(new Date(runIso))}</span>
+              </div>
+            ))}
           </div>
-          {extraIsos.map((runIso) => (
-            <div key={runIso} className="flex items-center gap-2 pl-3 py-1 text-xs text-stone-400">
-              <span className="w-16 shrink-0 font-medium">{formatSlotTime(new Date(runIso))}</span>
-            </div>
-          ))}
+          <div className="w-2 h-2 rounded-full bg-stone-300 shrink-0" />
+          <span className="text-sm text-stone-500 truncate flex-1 px-2">{state.meeting.otherPersonName}</span>
+          <span className="text-[11px] text-stone-400 shrink-0 italic pr-3">missed</span>
         </div>,
       );
     }
@@ -400,7 +397,7 @@ export default function CalendarView({
             </div>
           ))}
           <div
-            style={{ position: "absolute", top: 0, height: runIsos.length * 26, right: 4 }}
+            style={{ position: "absolute", top: 3, height: runIsos.length * 26 - 6, right: 4 }}
             className="flex items-center gap-1.5 px-2.5 rounded-md border border-emerald-200 bg-emerald-50 max-w-[50%]"
           >
             <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
@@ -417,139 +414,132 @@ export default function CalendarView({
       const dotCls = assigned ? "bg-stone-300" : "bg-emerald-500";
       const timeCls = assigned ? "text-stone-600" : "text-emerald-700";
       const nameCls = assigned ? "text-stone-700" : "text-emerald-900";
-      const extraIsos = getMeetingRunIsos(iso).slice(1);
+      const runIsos = getMeetingRunIsos(iso);
       return wrap(
-        <div className={`rounded-md border overflow-hidden ${colorCls} ${hlCls} ${pastCls}`}>
-          <div className={base}>
-            <span className={`text-xs ${timeCls} w-16 shrink-0 font-semibold`}>{time}</span>
-            <div className={`w-2 h-2 rounded-full ${dotCls} shrink-0`} />
-            <span className={`text-sm font-medium ${nameCls} truncate flex-1`}>
-              {state.meeting.otherPersonName}
-              {assigned && <span className="font-normal text-stone-400"> (assigned)</span>}
-            </span>
-            {!state.isPast && (
-              <div className="flex self-stretch shrink-0 w-[72px]">
-                <button
-                  onClick={() => {
-                    if (confirmingCancel === state.meeting.requestId) {
-                      setConfirmingCancel(null);
-                      act(state.meeting.requestId, "cancel", iso);
-                    } else {
-                      setConfirmingCancel(state.meeting.requestId);
-                    }
-                  }}
-                  onBlur={() => {
-                    if (confirmingCancel === state.meeting.requestId)
-                      setConfirmingCancel(null);
-                  }}
-                  disabled={busy === state.meeting.requestId}
-                  className={`self-stretch flex-1 text-xs font-medium ${
-                    confirmingCancel === state.meeting.requestId
-                      ? "text-stone-800 bg-stone-100 font-semibold"
-                      : "text-stone-600 hover:bg-stone-50 hover:text-stone-800"
-                  }`}
-                >
-                  {confirmingCancel === state.meeting.requestId ? "Sure?" : "Cancel"}
-                </button>
+        <div className={`rounded-md border overflow-hidden flex items-center ${colorCls} ${hlCls} ${pastCls}`}>
+          <div className="flex flex-col shrink-0 w-16">
+            {runIsos.map((runIso) => (
+              <div key={runIso} className="flex items-center pl-1" style={{ height: ROW_H }}>
+                <span className={`text-xs ${timeCls} font-medium`}>{formatSlotTime(new Date(runIso))}</span>
               </div>
-            )}
+            ))}
           </div>
-          {extraIsos.map((runIso) => (
-            <div key={runIso} className={`flex items-center gap-2 pl-3 py-1 text-xs ${timeCls}`}>
-              <span className="w-16 shrink-0 font-medium">{formatSlotTime(new Date(runIso))}</span>
-            </div>
-          ))}
+          <div className={`w-2 h-2 rounded-full ${dotCls} shrink-0`} />
+          <span className={`text-sm font-medium ${nameCls} truncate flex-1 px-2`}>
+            {state.meeting.otherPersonName}
+            {assigned && <span className="font-normal text-stone-400"> (assigned)</span>}
+          </span>
+          {!state.isPast && (
+            <button
+              onClick={() => {
+                if (confirmingCancel === state.meeting.requestId) {
+                  setConfirmingCancel(null);
+                  act(state.meeting.requestId, "cancel", iso);
+                } else {
+                  setConfirmingCancel(state.meeting.requestId);
+                }
+              }}
+              onBlur={() => {
+                if (confirmingCancel === state.meeting.requestId)
+                  setConfirmingCancel(null);
+              }}
+              disabled={busy === state.meeting.requestId}
+              className={`self-stretch shrink-0 w-[72px] text-xs font-medium ${
+                confirmingCancel === state.meeting.requestId
+                  ? "text-stone-800 bg-stone-100 font-semibold"
+                  : "text-stone-600 hover:bg-stone-50 hover:text-stone-800"
+              }`}
+            >
+              {confirmingCancel === state.meeting.requestId ? "Sure?" : "Cancel"}
+            </button>
+          )}
         </div>,
       );
     }
 
     if (state.kind === "incoming") {
-      const extraIsos = getMeetingRunIsos(iso).slice(1);
+      const runIsos = getMeetingRunIsos(iso);
       return wrap(
-        <div className={`rounded-md border overflow-hidden border-amber-200 bg-amber-50 ${hlCls}`}>
-          <div className={base}>
-            <span className="text-xs text-amber-700 w-16 shrink-0 font-semibold">{time}</span>
-            <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-            <span className="text-sm font-medium text-amber-900 truncate flex-1">
-              {state.meeting.otherPersonName}
-              {state.meeting.message && (
-                <span title={state.meeting.message}>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    className="w-3.5 h-3.5 inline-block ml-1.5 -mt-0.5 text-amber-500"
-                  >
-                    <path fillRule="evenodd" d="M2 4.25A2.25 2.25 0 0 1 4.25 2h11.5A2.25 2.25 0 0 1 18 4.25v8.5A2.25 2.25 0 0 1 15.75 15H9.06l-2.573 2.573A.75.75 0 0 1 5.25 17v-2H4.25A2.25 2.25 0 0 1 2 12.75v-8.5Z" clipRule="evenodd" />
-                  </svg>
-                </span>
-              )}
-            </span>
-            <div className="flex self-stretch shrink-0 w-[112px] border-l border-amber-200">
-              <button
-                onClick={() => act(state.meeting.requestId, "accept", iso)}
-                disabled={busy === state.meeting.requestId}
-                className="self-stretch flex-1 text-emerald-600 text-xs font-semibold hover:bg-emerald-50 disabled:opacity-50"
-              >
-                Accept
-              </button>
-              <button
-                onClick={() => act(state.meeting.requestId, "decline", iso)}
-                disabled={busy === state.meeting.requestId}
-                className="self-stretch flex-1 border-l border-amber-200 text-stone-400 text-xs font-medium hover:bg-stone-50 hover:text-stone-600 disabled:opacity-50"
-              >
-                Decline
-              </button>
-            </div>
+        <div className={`rounded-md border overflow-hidden flex items-center border-amber-200 bg-amber-50 ${hlCls}`}>
+          <div className="flex flex-col shrink-0 w-16">
+            {runIsos.map((runIso) => (
+              <div key={runIso} className="flex items-center pl-1" style={{ height: ROW_H }}>
+                <span className="text-xs text-amber-700 font-medium">{formatSlotTime(new Date(runIso))}</span>
+              </div>
+            ))}
           </div>
-          {extraIsos.map((runIso) => (
-            <div key={runIso} className="flex items-center gap-2 pl-3 py-1 text-xs text-amber-700">
-              <span className="w-16 shrink-0 font-medium">{formatSlotTime(new Date(runIso))}</span>
-            </div>
-          ))}
+          <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+          <span className="text-sm font-medium text-amber-900 truncate flex-1 px-2">
+            {state.meeting.otherPersonName}
+            {state.meeting.message && (
+              <span title={state.meeting.message}>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="w-3.5 h-3.5 inline-block ml-1.5 -mt-0.5 text-amber-500"
+                >
+                  <path fillRule="evenodd" d="M2 4.25A2.25 2.25 0 0 1 4.25 2h11.5A2.25 2.25 0 0 1 18 4.25v8.5A2.25 2.25 0 0 1 15.75 15H9.06l-2.573 2.573A.75.75 0 0 1 5.25 17v-2H4.25A2.25 2.25 0 0 1 2 12.75v-8.5Z" clipRule="evenodd" />
+                </svg>
+              </span>
+            )}
+          </span>
+          <div className="flex self-stretch shrink-0 w-[112px] border-l border-amber-200">
+            <button
+              onClick={() => act(state.meeting.requestId, "accept", iso)}
+              disabled={busy === state.meeting.requestId}
+              className="self-stretch flex-1 text-emerald-600 text-xs font-semibold hover:bg-emerald-50 disabled:opacity-50"
+            >
+              Accept
+            </button>
+            <button
+              onClick={() => act(state.meeting.requestId, "decline", iso)}
+              disabled={busy === state.meeting.requestId}
+              className="self-stretch flex-1 border-l border-amber-200 text-stone-400 text-xs font-medium hover:bg-stone-50 hover:text-stone-600 disabled:opacity-50"
+            >
+              Decline
+            </button>
+          </div>
         </div>,
       );
     }
 
     if (state.kind === "outgoing") {
-      const extraIsos = getMeetingRunIsos(iso).slice(1);
+      const runIsos = getMeetingRunIsos(iso);
       return wrap(
-        <div className={`rounded-md border overflow-hidden border-stone-200 bg-white ${hlCls}`}>
-          <div className={base}>
-            <span className="text-xs text-stone-500 w-16 shrink-0 font-medium">{time}</span>
-            <div className="w-2 h-2 rounded-full bg-stone-300 shrink-0" />
-            <span className="text-sm font-medium text-stone-600 truncate flex-1">{state.meeting.otherPersonName}</span>
-            <span className="text-[11px] text-stone-400 shrink-0 italic">waiting</span>
-            <div className="flex self-stretch shrink-0 w-[72px]">
-              <button
-                onClick={() => {
-                  if (confirmingCancel === state.meeting.requestId) {
-                    setConfirmingCancel(null);
-                    act(state.meeting.requestId, "cancel", iso);
-                  } else {
-                    setConfirmingCancel(state.meeting.requestId);
-                  }
-                }}
-                onBlur={() => {
-                  if (confirmingCancel === state.meeting.requestId)
-                    setConfirmingCancel(null);
-                }}
-                disabled={busy === state.meeting.requestId}
-                className={`self-stretch flex-1 text-xs font-medium ${
-                  confirmingCancel === state.meeting.requestId
-                    ? "text-stone-700 bg-stone-100 font-semibold"
-                    : "text-stone-400 hover:bg-stone-50 hover:text-stone-600"
-                }`}
-              >
-                {confirmingCancel === state.meeting.requestId ? "Sure?" : "Cancel"}
-              </button>
-            </div>
+        <div className={`rounded-md border overflow-hidden flex items-center border-stone-200 bg-white ${hlCls}`}>
+          <div className="flex flex-col shrink-0 w-16">
+            {runIsos.map((runIso) => (
+              <div key={runIso} className="flex items-center pl-1" style={{ height: ROW_H }}>
+                <span className="text-xs text-stone-500 font-medium">{formatSlotTime(new Date(runIso))}</span>
+              </div>
+            ))}
           </div>
-          {extraIsos.map((runIso) => (
-            <div key={runIso} className="flex items-center gap-2 pl-3 py-1 text-xs text-stone-500">
-              <span className="w-16 shrink-0 font-medium">{formatSlotTime(new Date(runIso))}</span>
-            </div>
-          ))}
+          <div className="w-2 h-2 rounded-full bg-stone-300 shrink-0" />
+          <span className="text-sm font-medium text-stone-600 truncate flex-1 px-2">{state.meeting.otherPersonName}</span>
+          <span className="text-[11px] text-stone-400 shrink-0 italic">waiting</span>
+          <button
+            onClick={() => {
+              if (confirmingCancel === state.meeting.requestId) {
+                setConfirmingCancel(null);
+                act(state.meeting.requestId, "cancel", iso);
+              } else {
+                setConfirmingCancel(state.meeting.requestId);
+              }
+            }}
+            onBlur={() => {
+              if (confirmingCancel === state.meeting.requestId)
+                setConfirmingCancel(null);
+            }}
+            disabled={busy === state.meeting.requestId}
+            className={`self-stretch shrink-0 w-[72px] text-xs font-medium ${
+              confirmingCancel === state.meeting.requestId
+                ? "text-stone-700 bg-stone-100 font-semibold"
+                : "text-stone-400 hover:bg-stone-50 hover:text-stone-600"
+            }`}
+          >
+            {confirmingCancel === state.meeting.requestId ? "Sure?" : "Cancel"}
+          </button>
         </div>,
       );
     }
