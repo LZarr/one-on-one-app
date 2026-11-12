@@ -10,6 +10,14 @@ export function formatSlotTime(d: Date): string {
   return `${h12}:${m.toString().padStart(2, "0")}${ampm}`;
 }
 
+export function formatSlotTimeRange(start: Date, end: Date): string {
+  const s = formatSlotTime(start);
+  const e = formatSlotTime(end);
+  const sAmpm = s.slice(-2);
+  const eAmpm = e.slice(-2);
+  return sAmpm === eAmpm ? `${s.slice(0, -2)}-${e}` : `${s}-${e}`;
+}
+
 export function formatSlotDay(d: Date): string {
   const weekday = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][
     d.getUTCDay()

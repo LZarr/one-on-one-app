@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { formatSlotTime, formatSlotDay } from "@/lib/format";
+import { formatSlotTime, formatSlotTimeRange, formatSlotDay } from "@/lib/format";
+import { MEETING_DURATION_MINUTES } from "@/lib/config";
 import SlotGrid from "../../SlotGrid";
 
 type BetweenUsRequest = {
@@ -57,13 +58,36 @@ export default function OverlapGrid({
   const [confirm, setConfirm] = useState<string | null>(preselectedSlot ?? null);
   const [message, setMessage] = useState("");
   const [confirmingCancel, setConfirmingCancel] = useState<string | null>(null);
-  const [betweenUsMap, setBetweenUsMap] = useState<Record<string, BetweenUsRequest>>(
-    Object.fromEntries(betweenUs.map((p) => [p.slotStart, p])),
-  );
+
+  // A 1:1 always runs the full meeting duration, which can span more than one
+  // base-grid slot (meetingSlotCount > 1). Every slot it occupies needs to
+  // point at the same request, both so it can't be double-booked and so
+  // cancelling it from any of its slots clears the whole thing.
+  function getRunIsos(startIso: string): string[] {
+    const dateKey = startIso.slice(0, 10);
+    const dayIsos = groups[dateKey] ?? [];
+    const idx = dayIsos.indexOf(startIso);
+    if (idx === -1) return [startIso];
+    const run = [startIso];
+    for (let i = 1; i < meetingSlotCount; i++) {
+      const nextIso = dayIsos[idx + i];
+      if (!nextIso) break;
+      run.push(nextIso);
+    }
+    return run;
+  }
+
+  const [betweenUsMap, setBetweenUsMap] = useState<Record<string, BetweenUsRequest>>(() => {
+    const map: Record<string, BetweenUsRequest> = {};
+    for (const p of betweenUs) {
+      for (const runIso of getRunIsos(p.slotStart)) map[runIso] = p;
+    }
+    return map;
+  });
   const mineSet = new Set(mine);
   const theirsSet = new Set(theirs);
-  const myBookedSet = new Set(myBooked);
-  const theirBookedSet = new Set(theirBooked);
+  const myBookedSet = new Set(myBooked.flatMap(getRunIsos));
+  const theirBookedSet = new Set(theirBooked.flatMap(getRunIsos));
   const blockedSet = new Set(blockedSlots);
   const nowMs = new Date(now).getTime();
 
@@ -85,10 +109,16 @@ export default function OverlapGrid({
     }
     const j = await res.json().catch(() => ({}));
     if (j.id) {
-      setBetweenUsMap({
-        ...betweenUsMap,
-        [iso]: { requestId: j.id, slotStart: iso, direction: "outgoing", status: "pending", message: msg.trim() || null },
-      });
+      const entry: BetweenUsRequest = {
+        requestId: j.id,
+        slotStart: iso,
+        direction: "outgoing",
+        status: "pending",
+        message: msg.trim() || null,
+      };
+      const next = { ...betweenUsMap };
+      for (const runIso of getRunIsos(iso)) next[runIso] = entry;
+      setBetweenUsMap(next);
     }
     router.refresh();
   }
@@ -96,7 +126,7 @@ export default function OverlapGrid({
   async function act(
     requestId: string,
     action: "accept" | "decline" | "cancel",
-    iso: string,
+    startIso: string,
   ) {
     setBusy(requestId);
     setError(null);
@@ -112,11 +142,14 @@ export default function OverlapGrid({
       return;
     }
     const next = { ...betweenUsMap };
+    const runIsos = getRunIsos(startIso);
     if (action === "accept") {
-      const existing = next[iso];
-      if (existing) next[iso] = { ...existing, status: "accepted" };
+      for (const runIso of runIsos) {
+        const existing = next[runIso];
+        if (existing) next[runIso] = { ...existing, status: "accepted" };
+      }
     } else {
-      delete next[iso];
+      for (const runIso of runIsos) delete next[runIso];
     }
     setBetweenUsMap(next);
     router.refresh();
@@ -218,7 +251,7 @@ export default function OverlapGrid({
               onClick={() => {
                 if (confirmingCancel === p.requestId) {
                   setConfirmingCancel(null);
-                  act(p.requestId, "cancel", iso);
+                  act(p.requestId, "cancel", p.slotStart);
                 } else {
                   setConfirmingCancel(p.requestId);
                 }
@@ -253,7 +286,7 @@ export default function OverlapGrid({
               onClick={() => {
                 if (confirmingCancel === p.requestId) {
                   setConfirmingCancel(null);
-                  act(p.requestId, "cancel", iso);
+                  act(p.requestId, "cancel", p.slotStart);
                 } else {
                   setConfirmingCancel(p.requestId);
                 }
@@ -298,14 +331,14 @@ export default function OverlapGrid({
           </span>
           <div className="flex self-stretch shrink-0 w-[112px] border-l border-amber-200">
             <button
-              onClick={() => act(p.requestId, "accept", iso)}
+              onClick={() => act(p.requestId, "accept", p.slotStart)}
               disabled={busy === p.requestId}
               className="self-stretch flex-1 text-emerald-600 text-xs font-semibold hover:bg-emerald-50 disabled:opacity-50"
             >
               Accept
             </button>
             <button
-              onClick={() => act(p.requestId, "decline", iso)}
+              onClick={() => act(p.requestId, "decline", p.slotStart)}
               disabled={busy === p.requestId}
               className="self-stretch flex-1 border-l border-amber-200 text-stone-400 text-xs font-medium hover:bg-stone-50 hover:text-stone-600 disabled:opacity-50"
             >
@@ -396,8 +429,13 @@ export default function OverlapGrid({
             <p className="text-sm text-stone-500 mb-4">
               Meet with <span className="font-semibold text-stone-700">{toUserName}</span> on{" "}
               <span className="font-semibold text-stone-700">{formatSlotDay(new Date(confirm))}</span>{" "}
-              at{" "}
-              <span className="font-semibold text-stone-700">{formatSlotTime(new Date(confirm))}</span>?
+              from{" "}
+              <span className="font-semibold text-stone-700">
+                {formatSlotTimeRange(
+                  new Date(confirm),
+                  new Date(new Date(confirm).getTime() + MEETING_DURATION_MINUTES * 60 * 1000),
+                )}
+              </span>?
             </p>
             <label className="block text-xs font-semibold text-stone-600 mb-1.5">
               Message <span className="font-normal text-stone-400">(optional)</span>
