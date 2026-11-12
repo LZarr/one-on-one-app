@@ -24,9 +24,12 @@ export async function getActiveRetreats(): Promise<RetreatConfig[]> {
   return prisma.retreat.findMany({ where: { active: true }, orderBy: { createdAt: "asc" } });
 }
 
-export async function getRetreat(id: string): Promise<RetreatConfig | null> {
+// Wrapped in React's per-request cache: the layout and the page it renders
+// both call getRetreat with the same id on every request, so without this
+// every single page load did the same lookup twice.
+export const getRetreat = cache(async (id: string): Promise<RetreatConfig | null> => {
   return prisma.retreat.findUnique({ where: { id } });
-}
+});
 
 export type UserRetreatItem = { retreatId: string; name: string; isCurrent: boolean };
 

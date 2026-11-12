@@ -240,8 +240,11 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
   const { retreatId } = await params;
   const s = await getSession();
   if (!s.userId) redirect("/login");
-  if (!(await isRetreatAdmin(s.userId, retreatId))) redirect("/schedule");
-  const superAdmin = await isSuperAdmin(s.userId);
+  const [retreatAdmin, superAdmin] = await Promise.all([
+    isRetreatAdmin(s.userId, retreatId),
+    isSuperAdmin(s.userId),
+  ]);
+  if (!retreatAdmin) redirect("/schedule");
   const h = await headers();
   const host = h.get("host") || "localhost:3000";
   const proto = host.includes("localhost") ? "http" : "https";
@@ -267,7 +270,23 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
   const [attendees, meetings, allRequests, admins, allAvailability, agendaItems] = await Promise.all([
     prisma.retreatAttendance.findMany({
       where: { retreatId },
-      include: { user: true },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            superAdmin: true,
+            pronouns: true,
+            school: true,
+            bio: true,
+            canHelpWith: true,
+            canBeHelpedWith: true,
+            keyCrux: true,
+            personalLink: true,
+          },
+        },
+      },
       orderBy: { user: { name: "asc" } },
     }),
     prisma.meetingRequest.findMany({

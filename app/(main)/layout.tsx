@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
-import { getRetreat, isSuperAdmin, isRetreatAdmin, getUserRetreats } from "@/lib/config";
+import { getRetreat, isRetreatAdmin, getUserRetreats } from "@/lib/config";
 import AppNav from "./AppNav";
 import BrandMark from "../BrandMark";
 
@@ -13,9 +13,15 @@ export default async function AppLayout({
   const session = await getSession();
   if (!session.userId) redirect("/login");
   if (!session.retreatId) redirect("/no-retreat");
-  const retreat = await getRetreat(session.retreatId);
-  const admin = await isSuperAdmin(session.userId) || await isRetreatAdmin(session.userId, session.retreatId);
-  const retreats = await getUserRetreats(session.userId, session.retreatId);
+  // isRetreatAdmin already covers super admins internally, so there's no need
+  // to also call isSuperAdmin — and these three don't depend on each other, so
+  // they run in parallel instead of one DB round-trip after another (this
+  // layout wraps every page, so each round-trip saved here applies everywhere).
+  const [retreat, admin, retreats] = await Promise.all([
+    getRetreat(session.retreatId),
+    isRetreatAdmin(session.userId, session.retreatId),
+    getUserRetreats(session.userId, session.retreatId),
+  ]);
 
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900">

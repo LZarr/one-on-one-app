@@ -12,12 +12,17 @@ export const metadata = {
 export default async function AboutPage() {
   const session = await getSession();
   const loggedIn = !!session.userId;
-  const retreat = session.retreatId ? await getRetreat(session.retreatId) : null;
-  const admin =
-    loggedIn &&
-    ((await isSuperAdmin(session.userId!)) ||
-      (!!session.retreatId && (await isRetreatAdmin(session.userId!, session.retreatId))));
-  const retreats = loggedIn ? await getUserRetreats(session.userId!, session.retreatId) : [];
+  // isRetreatAdmin already covers super admins; only fall back to isSuperAdmin
+  // when there's no retreat in context for it to check against.
+  const [retreat, admin, retreats] = await Promise.all([
+    session.retreatId ? getRetreat(session.retreatId) : Promise.resolve(null),
+    !loggedIn
+      ? Promise.resolve(false)
+      : session.retreatId
+        ? isRetreatAdmin(session.userId!, session.retreatId)
+        : isSuperAdmin(session.userId!),
+    loggedIn ? getUserRetreats(session.userId!, session.retreatId) : Promise.resolve([]),
+  ]);
 
   return (
     <div className="min-h-screen flex flex-col bg-stone-50 text-stone-900">
