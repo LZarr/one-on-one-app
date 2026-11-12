@@ -319,13 +319,14 @@ export default function CalendarView({
             </div>
           ))}
           {chips.map((c, i) => (
-            <span
+            <div
               key={i}
-              style={{ position: "absolute", top: c.top, height: c.height, right: 6 }}
-              className="flex items-center text-[11px] font-semibold px-2.5 rounded-full bg-emerald-500 text-white truncate max-w-[45%]"
+              style={{ position: "absolute", top: c.top, height: c.height, right: 4 }}
+              className="flex items-center gap-1.5 px-2.5 rounded-md border border-emerald-200 bg-emerald-50 max-w-[50%]"
             >
-              {c.name}
-            </span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              <span className="text-xs font-medium text-emerald-900 truncate">{c.name}</span>
+            </div>
           ))}
         </div>
       );
@@ -387,12 +388,13 @@ export default function CalendarView({
               <span className="text-xs text-stone-500 w-16 shrink-0 font-medium">{formatSlotTime(new Date(runIso))}</span>
             </div>
           ))}
-          <span
-            style={{ position: "absolute", top: 0, height: runIsos.length * 26, right: 6 }}
-            className="flex items-center text-[11px] font-semibold px-2.5 rounded-full bg-emerald-500 text-white truncate max-w-[45%]"
+          <div
+            style={{ position: "absolute", top: 0, height: runIsos.length * 26, right: 4 }}
+            className="flex items-center gap-1.5 px-2.5 rounded-md border border-emerald-200 bg-emerald-50 max-w-[50%]"
           >
-            {state.meeting.otherPersonName}
-          </span>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+            <span className="text-xs font-medium text-emerald-900 truncate">{state.meeting.otherPersonName}</span>
+          </div>
         </div>
       );
     }
