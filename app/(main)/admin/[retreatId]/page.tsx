@@ -263,9 +263,6 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
   const slotGroupsIso = Object.fromEntries(
     Object.entries(groupSlotsByDay(allSlots)).map(([k, v]) => [k, v.map((d) => d.toISOString())])
   );
-  const visibleSlotGroups = Object.fromEntries(
-    Object.entries(slotGroupsIso).map(([k, isos]) => [k, isos.filter((iso) => !blockedSlots.includes(iso))])
-  );
 
   const [attendees, meetings, allRequests, admins, allAvailability, agendaItems] = await Promise.all([
     prisma.retreatAttendance.findMany({
@@ -443,7 +440,7 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
         <AdminScheduleMeeting
           retreatId={retreatId}
           attendees={attendeeBriefs}
-          slotGroups={visibleSlotGroups}
+          slotGroups={slotGroupsIso}
           availabilityByUser={availabilityByUser}
           busyByUser={busyByUser}
           highlightedSlots={highlightedSlots}
@@ -451,7 +448,7 @@ export default async function RetreatAdminPage({ params }: { params: Promise<{ r
       </Section>
 
       <Section title="Bulk assign 1:1s" subtitle="pair up many people at once from a pasted list">
-        <BulkAssignMeetings retreatId={retreatId} slotGroups={visibleSlotGroups} />
+        <BulkAssignMeetings retreatId={retreatId} slotGroups={slotGroupsIso} />
       </Section>
 
       <Section title="Event agenda" subtitle="the official schedule, shown as an overlay on the Schedule tab" count={agendaItems.length}>
