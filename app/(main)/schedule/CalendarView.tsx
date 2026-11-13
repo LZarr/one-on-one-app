@@ -983,7 +983,7 @@ export default function CalendarView({
     return wrap(
       <div className={`${flatBase} rounded-md hover:bg-stone-50 ${flatHlCls}`} style={flatStyle}>
         <span className="text-sm text-stone-300 w-16 shrink-0 font-medium">{time}</span>
-        <span className="text-sm text-stone-300 flex-1">Blocked</span>
+        <span className="flex-1" />
         {!isAdminBlocked && (
           <button
             onClick={() => toggleBlock(iso)}
