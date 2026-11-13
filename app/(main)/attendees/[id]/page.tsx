@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { getRetreat, generateSlots, groupSlotsByDay, nowInRetreatTz, getDayHoursMap, getMeetingSlotCount } from "@/lib/config";
+import { getRetreat, generateSlots, groupSlotsByDay, nowInRetreatTz, getDayHoursMap, getMeetingSlotCount, blockedSlotsWithLookback } from "@/lib/config";
 import { getMyAvailability } from "@/lib/availability";
 import OverlapGrid from "./OverlapGrid";
 import Avatar from "../../../Avatar";
@@ -172,7 +172,7 @@ export default async function AttendeeProfile({
           message: p.message,
         }))}
         highlightedSlots={retreat.highlightedSlots ?? []}
-        blockedSlots={retreat.blockedSlots ?? []}
+        blockedSlots={blockedSlotsWithLookback(retreat)}
         meetingSlotCount={getMeetingSlotCount(retreat)}
         now={nowInRetreatTz(retreat).toISOString()}
         preselectedSlot={preselectedSlot}

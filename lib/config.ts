@@ -20,6 +20,25 @@ export function meetingSlotStarts(slotStart: Date, retreat: RetreatConfig): Date
   return Array.from({ length: count }, (_, i) => new Date(slotStart.getTime() + i * stepMs));
 }
 
+// A slot starting here would run into an admin-blocked slot before its
+// MEETING_DURATION_MINUTES are up, even though this slot itself isn't in
+// `retreat.blockedSlots` — e.g. the 15 minutes right before a blocked slot,
+// on a retreat with 15-minute granularity. Expands the raw blocked list
+// backward by every slot a meeting could start at and still overlap it, so
+// the UI can treat "blocked" and "would overlap a blocked slot" the same way.
+export function blockedSlotsWithLookback(retreat: RetreatConfig): string[] {
+  const count = getMeetingSlotCount(retreat);
+  const stepMs = retreat.granularityMinutes * 60 * 1000;
+  const expanded = new Set<string>();
+  for (const iso of retreat.blockedSlots ?? []) {
+    const t = new Date(iso).getTime();
+    for (let i = 0; i < count; i++) {
+      expanded.add(new Date(t - i * stepMs).toISOString());
+    }
+  }
+  return Array.from(expanded);
+}
+
 export async function getActiveRetreats(): Promise<RetreatConfig[]> {
   return prisma.retreat.findMany({ where: { active: true }, orderBy: { createdAt: "asc" } });
 }

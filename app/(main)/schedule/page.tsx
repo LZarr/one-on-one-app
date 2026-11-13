@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
-import { getRetreat, generateSlots, groupSlotsByDay, nowInRetreatTz, getDayHoursMap, meetingSlotStarts } from "@/lib/config";
+import { getRetreat, generateSlots, groupSlotsByDay, nowInRetreatTz, getDayHoursMap, meetingSlotStarts, blockedSlotsWithLookback } from "@/lib/config";
 import {
   getMyAvailability,
   ensureDefaultAvailability,
@@ -96,7 +96,7 @@ export default async function SchedulePage() {
         availableSlots={Array.from(mine)}
         slotMeetings={slotMeetings}
         highlightedSlots={retreat.highlightedSlots ?? []}
-        blockedSlots={retreat.blockedSlots ?? []}
+        blockedSlots={blockedSlotsWithLookback(retreat)}
         agendaItems={agendaItems}
         now={nowInRetreatTz(retreat).toISOString()}
       />
