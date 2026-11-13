@@ -432,12 +432,15 @@ export default function CalendarView({
             const rowState = !m ? classify(runIso) : null;
             // A blocked slot should read as de-emphasized even on top of an
             // agenda tint, same as it does outside the overlay — otherwise it
-            // looks identical to an open, bookable slot.
+            // looks identical to an open, bookable slot. Opacity alone won't
+            // do it here: the tint is painted by the parent block, not this
+            // row, so a plain opacity on this row only fades its own text,
+            // not the color behind it — it needs its own wash on top instead.
             const isBlockedRow = rowState?.kind === "blocked";
             return (
               <div
                 key={runIso}
-                className={`flex items-center gap-1 px-1 text-sm ${isBlockedRow ? "opacity-50" : ""}`}
+                className={`flex items-center gap-1 px-1 text-sm ${isBlockedRow ? "bg-white/60" : ""}`}
                 style={{ height: ROW_H }}
               >
                 <span className={`text-sm w-16 shrink-0 font-medium ${tint!.text}`}>
@@ -454,13 +457,13 @@ export default function CalendarView({
                   <div className="flex items-center gap-3 shrink-0 pr-2 ml-auto">
                     <button
                       onClick={() => router.push(`/attendees?slot=${runIso}`)}
-                      className="text-sm text-emerald-600 font-semibold hover:text-emerald-700"
+                      className="text-sm text-stone-900 font-medium hover:text-accent-600"
                     >
                       Book
                     </button>
                     <button
                       onClick={() => toggleBlock(runIso)}
-                      className="text-sm text-red-600 font-semibold hover:text-red-700"
+                      className="text-sm text-stone-900 font-medium hover:text-accent-600"
                     >
                       Block
                     </button>
@@ -960,13 +963,13 @@ export default function CalendarView({
           <div className="flex items-center gap-3 shrink-0 pr-2">
             <button
               onClick={() => router.push(`/attendees?slot=${iso}`)}
-              className="text-sm text-emerald-600 font-semibold hover:text-emerald-700"
+              className="text-sm text-stone-900 font-medium hover:text-accent-600"
             >
               Book
             </button>
             <button
               onClick={() => toggleBlock(iso)}
-              className="text-sm text-red-600 font-semibold hover:text-red-700"
+              className="text-sm text-stone-900 font-medium hover:text-accent-600"
             >
               Block
             </button>

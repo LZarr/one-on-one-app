@@ -30,7 +30,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         {children}
-        <footer className="mt-auto py-4 text-center text-xs text-stone-400">
+        <footer className="pt-3 pb-6 text-center text-xs text-stone-400">
           <a
             href="https://docs.google.com/forms/d/e/1FAIpQLSdRxsASHdxG31Hc2iU-K0sOD-zvHHN80vCCJjio0IKfDFaBPw/viewform?usp=header"
             target="_blank"
