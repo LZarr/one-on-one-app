@@ -290,7 +290,11 @@ export default function CalendarView({
     const state = classify(iso);
     const time = formatSlotTime(new Date(iso));
 
-    const flatBase = "flex items-center gap-1 px-1 py-1 text-sm min-h-[26px]";
+    // No vertical padding and a fixed height, matching the tinted rows'
+    // ROW_H exactly — otherwise this row renders taller than a tinted one
+    // and the whole list shifts/reflows when the agenda overlay is toggled.
+    const flatBase = "flex items-center gap-1 px-1 text-sm";
+    const flatStyle = { height: 26 };
     const hlCls = isHighlighted
       ? "ring-2 ring-amber-400/60 border-amber-300 bg-amber-50/40"
       : "";
@@ -426,8 +430,16 @@ export default function CalendarView({
             // they land on exactly the same baseline as the time label next to
             // them — a separately-positioned overlay drifted a few px off.
             const rowState = !m ? classify(runIso) : null;
+            // A blocked slot should read as de-emphasized even on top of an
+            // agenda tint, same as it does outside the overlay — otherwise it
+            // looks identical to an open, bookable slot.
+            const isBlockedRow = rowState?.kind === "blocked";
             return (
-              <div key={runIso} className="flex items-center gap-1 px-1 text-sm" style={{ height: ROW_H }}>
+              <div
+                key={runIso}
+                className={`flex items-center gap-1 px-1 text-sm ${isBlockedRow ? "opacity-50" : ""}`}
+                style={{ height: ROW_H }}
+              >
                 <span className={`text-sm w-16 shrink-0 font-medium ${tint!.text}`}>
                   {formatSlotTime(new Date(runIso))}
                 </span>
@@ -442,19 +454,19 @@ export default function CalendarView({
                   <div className="flex items-center gap-3 shrink-0 pr-2 ml-auto">
                     <button
                       onClick={() => router.push(`/attendees?slot=${runIso}`)}
-                      className="text-sm text-stone-900 font-medium hover:text-accent-600"
+                      className="text-sm text-emerald-600 font-semibold hover:text-emerald-700"
                     >
                       Book
                     </button>
                     <button
                       onClick={() => toggleBlock(runIso)}
-                      className="text-sm text-stone-900 font-medium hover:text-accent-600"
+                      className="text-sm text-red-600 font-semibold hover:text-red-700"
                     >
                       Block
                     </button>
                   </div>
                 )}
-                {rowState?.kind === "blocked" && !adminBlocked.has(runIso) && (
+                {isBlockedRow && !adminBlocked.has(runIso) && (
                   <button
                     onClick={() => toggleBlock(runIso)}
                     className="text-sm text-stone-900 font-medium hover:text-accent-600 shrink-0 pr-2 ml-auto"
@@ -501,7 +513,7 @@ export default function CalendarView({
                 <div
                   key={i}
                   style={posStyle}
-                  className={`flex items-center justify-center gap-1.5 px-2.5 border w-1/3 ${edgeCls} ${past.cls}`}
+                  className={`flex items-center justify-center gap-1.5 px-2.5 border w-[40%] ${edgeCls} ${past.cls}`}
                 >
                   {!c.continuesFromPrev && (
                     <>
@@ -576,7 +588,7 @@ export default function CalendarView({
                   if (confirming) setConfirmingCancel(null);
                 }}
                 disabled={busy === c.requestId}
-                className={`flex items-center justify-center gap-1.5 px-2.5 border w-1/3 ${edgeCls} ${live.cls}`}
+                className={`flex items-center justify-center gap-1.5 px-2.5 border w-[40%] ${edgeCls} ${live.cls}`}
               >
                 {confirming ? (
                   <span className="text-sm font-semibold text-stone-800">Cancel?</span>
@@ -613,7 +625,7 @@ export default function CalendarView({
     if (state.kind === "past") {
       if (tint) return tintedBlock();
       return wrap(
-        <div className={`${flatBase} ${flatHlCls}`}>
+        <div className={`${flatBase} ${flatHlCls}`} style={flatStyle}>
           <span className="text-sm text-stone-300 w-16 shrink-0 font-medium">{time}</span>
         </div>,
       );
@@ -659,7 +671,7 @@ export default function CalendarView({
             const requestId = state.meeting.requestId;
             const confirming = confirmingCancel === requestId;
             const posStyle = { position: "absolute" as const, top: 3, height: runIsos.length * 26 - 6, right: 4 };
-            const clsBase = "flex items-center justify-center gap-1.5 px-2.5 rounded-md border w-1/3";
+            const clsBase = "flex items-center justify-center gap-1.5 px-2.5 rounded-md border w-[40%]";
             const nameWrapCls = runIsos.length >= 2 ? "line-clamp-2 leading-tight" : "truncate";
             if (state.isPast) {
               return (
@@ -738,7 +750,7 @@ export default function CalendarView({
                   if (confirming) setConfirmingCancel(null);
                 }}
                 disabled={busy === requestId}
-                className={`flex items-center justify-center gap-1.5 px-2.5 rounded-md border w-1/3 ${
+                className={`flex items-center justify-center gap-1.5 px-2.5 rounded-md border w-[40%] ${
                   confirming ? "border-stone-300 bg-stone-100" : "border-amber-200 bg-amber-50 hover:bg-amber-100"
                 }`}
               >
@@ -942,19 +954,19 @@ export default function CalendarView({
     if (state.kind === "available") {
       if (tint) return tintedBlock();
       return wrap(
-        <div className={`${flatBase} rounded-md hover:bg-stone-50 ${flatHlCls}`}>
+        <div className={`${flatBase} rounded-md hover:bg-stone-50 ${flatHlCls}`} style={flatStyle}>
           <span className="text-sm text-stone-500 w-16 shrink-0 font-medium">{time}</span>
           <span className="flex-1" />
           <div className="flex items-center gap-3 shrink-0 pr-2">
             <button
               onClick={() => router.push(`/attendees?slot=${iso}`)}
-              className="text-sm text-stone-900 font-medium hover:text-accent-600"
+              className="text-sm text-emerald-600 font-semibold hover:text-emerald-700"
             >
               Book
             </button>
             <button
               onClick={() => toggleBlock(iso)}
-              className="text-sm text-stone-900 font-medium hover:text-accent-600"
+              className="text-sm text-red-600 font-semibold hover:text-red-700"
             >
               Block
             </button>
@@ -966,7 +978,7 @@ export default function CalendarView({
     const isAdminBlocked = adminBlocked.has(iso);
     if (tint) return tintedBlock();
     return wrap(
-      <div className={`${flatBase} rounded-md hover:bg-stone-50 ${flatHlCls}`}>
+      <div className={`${flatBase} rounded-md hover:bg-stone-50 ${flatHlCls}`} style={flatStyle}>
         <span className="text-sm text-stone-300 w-16 shrink-0 font-medium">{time}</span>
         <span className="text-sm text-stone-300 flex-1">{isAdminBlocked ? "Blocked by admin" : "Blocked"}</span>
         {!isAdminBlocked && (
