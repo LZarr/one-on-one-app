@@ -36,10 +36,12 @@ export async function createAdminMeeting(
       for (const slot of meetingSlots) {
         await lockSlot(tx, retreatId, slot, [fromUserId, toUserId]);
       }
-      const blocked = new Set(retreat.blockedSlots ?? []);
+      // Blocked slots exist to keep *self-service* requests out of admin-
+      // reserved time (like a designated paired-1:1 slot) — this function is
+      // only ever called by the admin scheduling tools, which need to be able
+      // to assign meetings into exactly those slots, so it doesn't check
+      // retreat.blockedSlots at all.
       for (const slot of meetingSlots) {
-        const iso = slot.toISOString();
-        if (blocked.has(iso)) throw new Error("That slot is blocked.");
         const conflict = await tx.meetingRequest.findFirst({
           where: {
             retreatId,
