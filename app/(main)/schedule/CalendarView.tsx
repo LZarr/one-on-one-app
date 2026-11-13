@@ -454,7 +454,7 @@ export default function CalendarView({
                   </span>
                 )}
                 {rowState?.kind === "available" && (
-                  <div className="flex items-center gap-2 shrink-0 pr-2 ml-auto">
+                  <div className="flex items-center gap-1 shrink-0 pr-2 ml-auto">
                     <button
                       onClick={() => router.push(`/attendees?slot=${runIso}`)}
                       className="text-sm text-stone-900 font-medium hover:text-accent-600 border border-stone-300 hover:border-accent-400 rounded-md px-2 py-0.5 leading-none bg-white/70"
@@ -960,7 +960,7 @@ export default function CalendarView({
         <div className={`${flatBase} rounded-md hover:bg-stone-50 ${flatHlCls}`} style={flatStyle}>
           <span className="text-sm text-stone-500 w-16 shrink-0 font-medium">{time}</span>
           <span className="flex-1" />
-          <div className="flex items-center gap-2 shrink-0 pr-2">
+          <div className="flex items-center gap-1 shrink-0 pr-2">
             <button
               onClick={() => router.push(`/attendees?slot=${iso}`)}
               className="text-sm text-stone-900 font-medium hover:text-accent-600 border border-stone-300 hover:border-accent-400 rounded-md px-2 py-0.5 leading-none bg-white/70"
