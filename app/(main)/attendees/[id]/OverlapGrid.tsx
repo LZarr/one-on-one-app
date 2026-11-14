@@ -1,10 +1,20 @@
 "use client";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatSlotTime, formatSlotTimeRange, formatSlotDay } from "@/lib/format";
 import { MEETING_DURATION_MINUTES } from "@/lib/config";
-import { type AgendaItem, agendaItemLabel } from "@/lib/agenda";
+import {
+  type AgendaItem,
+  type AgendaCategory,
+  categorizeAgendaItem,
+  AGENDA_CATEGORY_STYLES,
+  agendaItemLabel,
+} from "@/lib/agenda";
 import SlotGrid from "../../SlotGrid";
+
+// Every row in the retreat-schedule overlay — a plain base slot or a merged
+// agenda-tinted block — is exactly this tall, matching the schedule page.
+const ROW_H = 26;
 
 type BetweenUsRequest = {
   requestId: string;
@@ -71,6 +81,7 @@ export default function OverlapGrid({
   const [message, setMessage] = useState("");
   const [confirmingCancel, setConfirmingCancel] = useState<string | null>(null);
   const [showAgenda, setShowAgenda] = useState(false);
+  const nowMs = new Date(now).getTime();
 
   const agendaRanges = useMemo(
     () =>
@@ -79,21 +90,27 @@ export default function OverlapGrid({
         startMs: new Date(`${a.date}T${a.startTime}:00Z`).getTime(),
         endMs: new Date(`${a.date}T${a.endTime}:00Z`).getTime(),
         label: agendaItemLabel(a.title, a.subtitle),
+        category: categorizeAgendaItem(a.title),
       })),
     [agendaItems],
   );
 
   // Per slot, which agenda item (if any) covers it, and whether this slot is
-  // the first in that item's contiguous run — so the label only shows once
-  // per item instead of repeating on every 15-minute row it spans.
+  // the first in that item's contiguous run — so the overlay can render one
+  // merged block per item instead of repeating a tint on every slot it spans.
   const agendaRunInfo = useMemo(() => {
-    const info: Record<string, { key: string; label: string; isStart: boolean }> = {};
+    const info: Record<string, { key: string; label: string; category: AgendaCategory; isStart: boolean }> = {};
     for (const isos of Object.values(groups)) {
       const matchKeys: (string | null)[] = isos.map((iso) => {
         const slotMs = new Date(iso).getTime();
         const matches = agendaRanges.filter((a) => slotMs >= a.startMs && slotMs < a.endMs);
         if (matches.length === 0) return null;
-        info[iso] = { key: matches.map((m) => m.key).join("+"), label: matches.map((m) => m.label).join(" · "), isStart: false };
+        info[iso] = {
+          key: matches.map((m) => m.key).join("+"),
+          label: matches.map((m) => m.label).join(" · "),
+          category: matches[0].category,
+          isStart: false,
+        };
         return info[iso].key;
       });
       for (let i = 0; i < isos.length; i++) {
@@ -104,6 +121,49 @@ export default function OverlapGrid({
     }
     return info;
   }, [groups, agendaRanges]);
+
+  // Past slots are always hidden on this page (unlike the schedule page),
+  // so an agenda item already in progress has its *true* first slot hidden
+  // — agenda.isStart would then never be true for anything visible, and the
+  // whole block would wrongly disappear. This finds the first slot of a run
+  // that's actually eligible to be shown at all, treating it as the
+  // effective start.
+  function isAgendaEffectiveStart(iso: string): boolean {
+    const info = agendaRunInfo[iso];
+    if (!info) return false;
+    if (info.isStart) return true;
+    const dateKey = iso.slice(0, 10);
+    const dayIsos = groups[dateKey] ?? [];
+    const prevIso = dayIsos[dayIsos.indexOf(iso) - 1];
+    if (!prevIso) return true;
+    return new Date(prevIso).getTime() < nowMs;
+  }
+
+  // Collects every slot belonging to the same contiguous agenda run as
+  // `startIso`, so the run can be rendered as one merged block.
+  function getAgendaRunIsos(startIso: string): string[] {
+    const dateKey = startIso.slice(0, 10);
+    const dayIsos = groups[dateKey] ?? [];
+    const idx = dayIsos.indexOf(startIso);
+    if (idx === -1) return [startIso];
+    const key = agendaRunInfo[startIso]?.key;
+    const run = [startIso];
+    for (let i = idx + 1; i < dayIsos.length; i++) {
+      const info = agendaRunInfo[dayIsos[i]];
+      if (!info || info.isStart || info.key !== key) break;
+      run.push(dayIsos[i]);
+    }
+    return run;
+  }
+
+  // Would this slot be drawn by an agenda-tinted merged block right now?
+  // Mirrors the tint decision renderSlot makes for a slot it's actually
+  // rendering, so a straddling meeting's chip can tell whether its other
+  // half was handled by a *different* tinted block (draw this one too) or
+  // by the plain standalone renderer (don't duplicate it).
+  function isMeetingSlotTinted(iso: string): boolean {
+    return showAgenda && !!agendaRunInfo[iso];
+  }
 
   // A 1:1 always runs the full meeting duration, which can span more than one
   // base-grid slot (meetingSlotCount > 1). Every slot it occupies needs to
@@ -148,7 +208,6 @@ export default function OverlapGrid({
   const theirBookedSet = new Set(theirBooked.flatMap(getRunIsos));
   const blockedSet = new Set(blockedSlots);
   const noStartSet = new Set(noStartSlots);
-  const nowMs = new Date(now).getTime();
 
   async function request(iso: string, msg: string) {
     setConfirm(null);
@@ -259,9 +318,15 @@ export default function OverlapGrid({
     return "none";
   }
 
+  // With the overlay off, a slot is only shown at all if there's something
+  // to say about it (an overlap, a request, etc). With it on, any slot an
+  // agenda item covers is shown regardless — it needs to draw as part of
+  // that item's merged block even when there's nothing else going on.
   function filterSlot(iso: string): boolean {
     const state = classify(iso);
-    return state !== null && state !== "none";
+    if (state === null) return false;
+    if (showAgenda && agendaRunInfo[iso]) return true;
+    return state !== "none";
   }
 
   const allSlots = Object.values(groups).flat();
@@ -286,9 +351,308 @@ export default function OverlapGrid({
     return formatSlotTimeRange(start, end);
   }
 
+  // Renders one merged, agenda-tinted block covering every slot in `runIsos`
+  // (from getAgendaRunIsos). A confirmed/pending meeting inside it gets a
+  // name chip sized to the full span it occupies; a straddling meeting (its
+  // other half in a *different* tinted block) gets a flush-edged half-chip
+  // instead of a seam between two separate-looking boxes. A free slot with
+  // no meeting gets a small inline "Request" button instead of taking over
+  // the row the way it does with the overlay off.
+  type MeetingChip = {
+    top: number;
+    height: number;
+    kind: "confirmed" | "pendingOutgoing" | "pendingIncoming";
+    requestId: string;
+    startIso: string;
+    continuesFromPrev: boolean;
+    continuesToNext: boolean;
+  };
+  function tintedBlock(iso: string, tint: { bg: string; text: string }) {
+    const agenda = agendaRunInfo[iso]!;
+    const runIsos = getAgendaRunIsos(iso);
+    const chips: MeetingChip[] = [];
+    runIsos.forEach((runIso, i) => {
+      const m = betweenUsMap[runIso];
+      if (!m) return;
+      // A continuation *within this block* was already drawn by the chip
+      // pushed for its earlier row — skip it here.
+      if (i > 0 && betweenUsMap[runIsos[i - 1]]?.requestId === m.requestId) return;
+      let continuesFromPrev = false;
+      if (i === 0 && isRunContinuation(runIso)) {
+        const dateKey = runIso.slice(0, 10);
+        const dayIsos = groups[dateKey] ?? [];
+        const prevIso = dayIsos[dayIsos.indexOf(runIso) - 1];
+        if (!isMeetingSlotTinted(prevIso)) return;
+        continuesFromPrev = true;
+      }
+      let span = 0;
+      for (let j = i; j < runIsos.length; j++) {
+        if (betweenUsMap[runIsos[j]]?.requestId === m.requestId) span++;
+        else break;
+      }
+      let continuesToNext = false;
+      if (i + span === runIsos.length) {
+        const lastIso = runIsos[i + span - 1];
+        const dateKey = lastIso.slice(0, 10);
+        const dayIsos = groups[dateKey] ?? [];
+        const nextIso = dayIsos[dayIsos.indexOf(lastIso) + 1];
+        const nextM = nextIso ? betweenUsMap[nextIso] : undefined;
+        if (nextM && nextM.requestId === m.requestId && isMeetingSlotTinted(nextIso)) {
+          continuesToNext = true;
+        }
+      }
+      chips.push({
+        top: i * ROW_H,
+        height: Math.max(1, span) * ROW_H,
+        kind: m.status === "accepted" ? "confirmed" : m.direction === "outgoing" ? "pendingOutgoing" : "pendingIncoming",
+        requestId: m.requestId,
+        startIso: m.slotStart,
+        continuesFromPrev,
+        continuesToNext,
+      });
+    });
+    const labelNeedsClearance = chips.some((c) => c.top === 0);
+    const blockContinuesFromPrev = chips.some((c) => c.top === 0 && c.continuesFromPrev);
+    const blockContinuesToNext = chips.some((c) => c.top + c.height === runIsos.length * ROW_H && c.continuesToNext);
+    const blockRoundCls = `${blockContinuesFromPrev ? "rounded-t-none" : "rounded-t-md"} ${
+      blockContinuesToNext ? "rounded-b-none" : "rounded-b-md"
+    }`;
+    const blockHlCls = runIsos.some((ri) => highlightedSlots.includes(ri))
+      ? "ring-2 ring-amber-400/40"
+      : "";
+    return (
+      <div
+        key={iso}
+        style={blockContinuesFromPrev ? { marginTop: "-2px" } : undefined}
+        className={`${tint.bg} ${blockRoundCls} ${blockHlCls} overflow-hidden relative`}
+      >
+        {runIsos.map((runIso, i) => {
+          const m = betweenUsMap[runIso];
+          const rowState = !m ? classify(runIso) : null;
+          return (
+            <div key={runIso} className="flex items-center gap-1 px-1 text-sm" style={{ height: ROW_H }}>
+              <span className={`text-sm w-16 shrink-0 font-medium ${tint.text}`}>
+                {formatSlotTime(new Date(runIso))}
+              </span>
+              {i === 0 && (
+                <span
+                  className={`text-sm font-medium min-w-0 flex-1 truncate ${labelNeedsClearance ? "pr-20" : ""} ${tint.text}`}
+                >
+                  {agenda.label}
+                </span>
+              )}
+              {rowState === "available" && (
+                <button
+                  onClick={() => setConfirm(runIso)}
+                  className="text-sm text-stone-900 font-medium hover:text-accent-600 border border-stone-300 hover:border-accent-400 rounded-md px-2 py-0.5 leading-none bg-white/70 shrink-0 ml-auto mr-2"
+                >
+                  Request
+                </button>
+              )}
+            </div>
+          );
+        })}
+        {chips.map((c, i) => {
+          // The usual 3px breathing room above/below a chip has to disappear
+          // on whichever edge touches the other half of a straddling
+          // meeting — otherwise that inset alone still shows as a gap.
+          const topInset = c.continuesFromPrev ? 0 : 3;
+          const bottomInset = c.continuesToNext ? 0 : 3;
+          const posStyle = {
+            position: "absolute" as const,
+            top: c.top + topInset,
+            height: c.height - topInset - bottomInset,
+            right: 4,
+          };
+          const nameWrapCls = c.height >= 2 * ROW_H - 6 ? "line-clamp-2 leading-tight" : "truncate";
+          const edgeCls = `${c.continuesFromPrev ? "rounded-t-none border-t-0" : "rounded-t-md"} ${
+            c.continuesToNext ? "rounded-b-none border-b-0" : "rounded-b-md"
+          }`;
+          if (c.kind === "pendingIncoming") {
+            return (
+              <div
+                key={i}
+                style={posStyle}
+                className={`flex items-center border border-amber-200 bg-amber-50 w-1/2 overflow-hidden ${edgeCls}`}
+              >
+                {c.continuesFromPrev ? (
+                  <span className="flex-1" />
+                ) : (
+                  <>
+                    <span className={`text-sm font-medium text-amber-900 ${nameWrapCls} flex-1 px-2`}>{toUserName}</span>
+                    <button
+                      onClick={() => act(c.requestId, "accept", c.startIso)}
+                      disabled={busy === c.requestId}
+                      className="self-stretch px-2 text-sm font-semibold text-emerald-600 hover:bg-emerald-100 disabled:opacity-50"
+                    >
+                      Accept
+                    </button>
+                    <button
+                      onClick={() => act(c.requestId, "decline", c.startIso)}
+                      disabled={busy === c.requestId}
+                      className="self-stretch px-2 text-sm font-medium text-stone-400 border-l border-amber-200 hover:bg-stone-100 disabled:opacity-50"
+                    >
+                      Decline
+                    </button>
+                  </>
+                )}
+              </div>
+            );
+          }
+          const confirming = confirmingCancel === c.requestId;
+          const live =
+            c.kind === "confirmed"
+              ? {
+                  dot: "bg-emerald-500",
+                  text: "text-emerald-900",
+                  cls: confirming
+                    ? "border-stone-300 bg-stone-100"
+                    : "border-emerald-200 bg-emerald-50 hover:bg-emerald-100",
+                }
+              : {
+                  dot: "bg-amber-500",
+                  text: "text-amber-900",
+                  cls: confirming
+                    ? "border-stone-300 bg-stone-100"
+                    : "border-amber-200 bg-amber-50 hover:bg-amber-100",
+                };
+          return (
+            <button
+              key={i}
+              style={posStyle}
+              onClick={() => {
+                if (confirming) {
+                  setConfirmingCancel(null);
+                  act(c.requestId, "cancel", c.startIso);
+                } else {
+                  setConfirmingCancel(c.requestId);
+                }
+              }}
+              onBlur={() => {
+                if (confirming) setConfirmingCancel(null);
+              }}
+              disabled={busy === c.requestId}
+              className={`flex items-center justify-center gap-1.5 px-2.5 border w-[40%] ${edgeCls} ${live.cls}`}
+            >
+              {confirming ? (
+                <span className="text-sm font-semibold text-stone-800">Cancel?</span>
+              ) : (
+                !c.continuesFromPrev && (
+                  <>
+                    <span className={`w-2 h-2 rounded-full ${live.dot} shrink-0`} />
+                    <span className={`text-sm font-medium ${live.text} ${nameWrapCls} text-center`}>{toUserName}</span>
+                  </>
+                )
+              )}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Same small-chip treatment as tintedBlock, but for a meeting that falls
+  // outside any agenda item's time range — still condensed (so toggling the
+  // overlay doesn't make a meeting jump between two totally different
+  // looks depending on which 15 minutes happen to have an agenda item).
+  function standaloneCondensed(iso: string, state: "confirmed" | "pendingOutgoing" | "pendingIncoming") {
+    const p = betweenUsMap[iso]!;
+    const runIsos = getRunIsos(iso);
+    const nameWrapCls = runIsos.length >= 2 ? "line-clamp-2 leading-tight" : "truncate";
+    const posStyle = { position: "absolute" as const, top: 3, height: runIsos.length * ROW_H - 6, right: 4 };
+    const blockHlCls = runIsos.some((ri) => highlightedSlots.includes(ri)) ? "ring-2 ring-amber-400/40" : "";
+    const timeRows = runIsos.map((runIso) => (
+      <div key={runIso} className="flex items-center gap-1 px-1 text-sm" style={{ height: ROW_H }}>
+        <span className="text-sm text-stone-500 w-16 shrink-0 font-medium">{formatSlotTime(new Date(runIso))}</span>
+      </div>
+    ));
+
+    if (state === "pendingIncoming") {
+      return (
+        <div key={iso} className={`rounded-md overflow-hidden relative ${blockHlCls}`}>
+          {timeRows}
+          <div
+            style={posStyle}
+            className="flex items-center rounded-md border border-amber-200 bg-amber-50 w-1/2 overflow-hidden"
+          >
+            <span className={`text-sm font-medium text-amber-900 flex-1 px-2 ${nameWrapCls}`}>{toUserName}</span>
+            <button
+              onClick={() => act(p.requestId, "accept", p.slotStart)}
+              disabled={busy === p.requestId}
+              className="self-stretch px-2 text-sm font-semibold text-emerald-600 hover:bg-emerald-100 disabled:opacity-50"
+            >
+              Accept
+            </button>
+            <button
+              onClick={() => act(p.requestId, "decline", p.slotStart)}
+              disabled={busy === p.requestId}
+              className="self-stretch px-2 text-sm font-medium text-stone-400 border-l border-amber-200 hover:bg-stone-100 disabled:opacity-50"
+            >
+              Decline
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    const confirming = confirmingCancel === p.requestId;
+    const live =
+      state === "confirmed"
+        ? { dot: "bg-emerald-500", text: "text-emerald-900", cls: "border-emerald-200 bg-emerald-50 hover:bg-emerald-100" }
+        : { dot: "bg-amber-500", text: "text-amber-900", cls: "border-amber-200 bg-amber-50 hover:bg-amber-100" };
+    return (
+      <div key={iso} className={`rounded-md overflow-hidden relative ${blockHlCls}`}>
+        {timeRows}
+        <button
+          style={posStyle}
+          onClick={() => {
+            if (confirming) {
+              setConfirmingCancel(null);
+              act(p.requestId, "cancel", p.slotStart);
+            } else {
+              setConfirmingCancel(p.requestId);
+            }
+          }}
+          onBlur={() => {
+            if (confirming) setConfirmingCancel(null);
+          }}
+          disabled={busy === p.requestId}
+          className={`flex items-center justify-center gap-1.5 px-2.5 rounded-md border w-[40%] ${
+            confirming ? "border-stone-300 bg-stone-100" : live.cls
+          }`}
+        >
+          {confirming ? (
+            <span className="text-sm font-semibold text-stone-800">Cancel?</span>
+          ) : (
+            <>
+              <span className={`w-2 h-2 rounded-full ${live.dot} shrink-0`} />
+              <span className={`text-sm font-medium ${live.text} ${nameWrapCls} text-center`}>{toUserName}</span>
+            </>
+          )}
+        </button>
+      </div>
+    );
+  }
+
   function renderSlot(iso: string, { isHighlighted }: { isHighlighted: boolean; isPast: boolean }) {
     const state = classify(iso);
-    if (!state || state === "none") return null;
+    if (!state) return null;
+
+    const agenda = showAgenda ? agendaRunInfo[iso] : undefined;
+    const tint = agenda ? AGENDA_CATEGORY_STYLES[agenda.category] : null;
+
+    if (tint) {
+      // Continuation slot of an already-rendered merged block: nothing to
+      // draw here (handled by whichever earlier slot started this run).
+      // Note "none" (blocked/no-overlap) slots are deliberately NOT excluded
+      // here — an agenda-covered run must render as one continuous block
+      // even when its first slot happens to have nothing else going on.
+      if (!isAgendaEffectiveStart(iso)) return null;
+      return tintedBlock(iso, tint);
+    }
+
+    if (state === "none") return null;
+
     // A multi-slot meeting/request is one box, not one per base-grid slot it
     // occupies — the run's first slot draws the whole thing, so later slots
     // in the same run render nothing.
@@ -298,30 +662,24 @@ export default function OverlapGrid({
     ) {
       return null;
     }
+
+    // Overlay on, but this slot isn't covered by any agenda item: a meeting
+    // still gets the condensed chip treatment instead of flipping back and
+    // forth between two looks depending on whether there happens to be an
+    // agenda item at that exact time.
+    if ((state === "confirmed" || state === "pendingOutgoing" || state === "pendingIncoming") && showAgenda) {
+      return standaloneCondensed(iso, state);
+    }
+
     const time = formatSlotTime(new Date(iso));
     const hlCls = isHighlighted
       ? "ring-2 ring-amber-400/60 border-amber-300 bg-amber-50/40"
       : "";
 
-    // Retreat schedule overlay (off by default): a small caption under the
-    // row naming whatever agenda item covers it, shown once per item rather
-    // than repeating on every 15-minute row it spans.
-    const agenda = showAgenda ? agendaRunInfo[iso] : undefined;
-    const caption = agenda?.isStart ? agenda.label : null;
-    const wrap = (row: ReactNode) => (
-      <div key={iso}>
-        {row}
-        {caption && (
-          <div className="text-[11px] text-stone-400 italic pl-3 pt-0.5 pb-1.5 truncate">
-            {caption}
-          </div>
-        )}
-      </div>
-    );
-
     if (state === "available") {
-      return wrap(
+      return (
         <div
+          key={iso}
           className={`${base} border-accent-200 bg-accent-50 hover:bg-accent-100 cursor-pointer ${hlCls}`}
           onClick={() => setConfirm(iso)}
         >
@@ -344,17 +702,17 @@ export default function OverlapGrid({
       // Both free, but a meeting can't start here — shown so the grid stays
       // consistent (no gap), just without the label or button that would
       // make it look like a legitimate booking offer.
-      return wrap(
-        <div className={`${base} border-stone-100 bg-white ${hlCls}`}>
+      return (
+        <div key={iso} className={`${base} border-stone-100 bg-white ${hlCls}`}>
           <span className="text-xs text-stone-400 w-16 shrink-0 font-medium">{time}</span>
-        </div>,
+        </div>
       );
     }
 
     if (state === "confirmed") {
       const p = betweenUsMap[iso]!;
-      return wrap(
-        <div className={`${base} border-emerald-200 bg-emerald-50 ${hlCls}`}>
+      return (
+        <div key={iso} className={`${base} border-emerald-200 bg-emerald-50 ${hlCls}`}>
           <span className="text-xs text-emerald-700 w-24 shrink-0 font-semibold">{meetingTimeRange(p)}</span>
           <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
           <span className="text-sm font-medium text-emerald-900 truncate flex-1">
@@ -389,8 +747,8 @@ export default function OverlapGrid({
 
     if (state === "pendingOutgoing") {
       const p = betweenUsMap[iso]!;
-      return wrap(
-        <div className={`${base} border-amber-200 bg-amber-50 ${hlCls}`}>
+      return (
+        <div key={iso} className={`${base} border-amber-200 bg-amber-50 ${hlCls}`}>
           <span className="text-xs text-amber-700 w-24 shrink-0 font-semibold">{meetingTimeRange(p)}</span>
           <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
           <span className="text-sm font-medium text-amber-800 truncate flex-1 text-center">Requested</span>
@@ -424,8 +782,8 @@ export default function OverlapGrid({
 
     if (state === "pendingIncoming") {
       const p = betweenUsMap[iso]!;
-      return wrap(
-        <div className={`${base} border-amber-200 bg-amber-50 ${hlCls}`}>
+      return (
+        <div key={iso} className={`${base} border-amber-200 bg-amber-50 ${hlCls}`}>
           <span className="text-xs text-amber-700 w-24 shrink-0 font-semibold">{meetingTimeRange(p)}</span>
           <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
           <span className="text-sm font-medium text-amber-900 truncate flex-1 text-center">
@@ -471,11 +829,11 @@ export default function OverlapGrid({
           : state === "bothBooked"
             ? "Both unavailable"
             : "Unavailable";
-    return wrap(
-      <div className={`${base} border-stone-100 bg-stone-50 opacity-50 ${hlCls}`}>
+    return (
+      <div key={iso} className={`${base} border-stone-100 bg-stone-50 opacity-50 ${hlCls}`}>
         <span className="text-xs text-stone-400 w-16 shrink-0 font-medium">{time}</span>
         <span className="text-sm text-stone-400 truncate flex-1">{unavailableLabel}</span>
-      </div>,
+      </div>
     );
   }
 
