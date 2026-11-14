@@ -32,6 +32,7 @@ type Props = {
   slotMeetings: Record<string, SlotMeeting>;
   highlightedSlots: string[];
   blockedSlots: string[];
+  noStartSlots?: string[];
   agendaItems: AgendaItem[];
   now: string;
 };
@@ -51,6 +52,7 @@ export default function CalendarView({
   slotMeetings: initialSlotMeetings,
   highlightedSlots,
   blockedSlots,
+  noStartSlots = [],
   agendaItems,
   now,
 }: Props) {
@@ -67,6 +69,9 @@ export default function CalendarView({
   const [showPendingModal, setShowPendingModal] = useState(false);
   const [showAgenda, setShowAgenda] = useState(true);
   const adminBlocked = new Set(blockedSlots);
+  // The back half of a named "1:1 Slot" window — still fine to mark yourself
+  // available/blocked there, just not offered as a fresh request start.
+  const noStartSet = new Set(noStartSlots);
 
   const agendaRanges = useMemo(
     () =>
@@ -433,12 +438,14 @@ export default function CalendarView({
                 )}
                 {rowState?.kind === "available" && (
                   <div className="flex items-center gap-1 shrink-0 pr-2 ml-auto">
-                    <button
-                      onClick={() => router.push(`/attendees?slot=${runIso}`)}
-                      className="text-sm text-stone-900 font-medium hover:text-accent-600 border border-stone-300 hover:border-accent-400 rounded-md px-2 py-0.5 leading-none bg-white/70"
-                    >
-                      Book
-                    </button>
+                    {!noStartSet.has(runIso) && (
+                      <button
+                        onClick={() => router.push(`/attendees?slot=${runIso}`)}
+                        className="text-sm text-stone-900 font-medium hover:text-accent-600 border border-stone-300 hover:border-accent-400 rounded-md px-2 py-0.5 leading-none bg-white/70"
+                      >
+                        Book
+                      </button>
+                    )}
                     <button
                       onClick={() => toggleBlock(runIso)}
                       className="text-sm text-stone-900 font-medium hover:text-accent-600 border border-stone-300 hover:border-accent-400 rounded-md px-2 py-0.5 leading-none bg-white/70"
@@ -939,12 +946,14 @@ export default function CalendarView({
           <span className="text-sm text-stone-500 w-16 shrink-0 font-medium">{time}</span>
           <span className="flex-1" />
           <div className="flex items-center gap-1 shrink-0 pr-2">
-            <button
-              onClick={() => router.push(`/attendees?slot=${iso}`)}
-              className="text-sm text-stone-900 font-medium hover:text-accent-600 border border-stone-300 hover:border-accent-400 rounded-md px-2 py-0.5 leading-none bg-white/70"
-            >
-              Book
-            </button>
+            {!noStartSet.has(iso) && (
+              <button
+                onClick={() => router.push(`/attendees?slot=${iso}`)}
+                className="text-sm text-stone-900 font-medium hover:text-accent-600 border border-stone-300 hover:border-accent-400 rounded-md px-2 py-0.5 leading-none bg-white/70"
+              >
+                Book
+              </button>
+            )}
             <button
               onClick={() => toggleBlock(iso)}
               className="text-sm text-stone-900 font-medium hover:text-accent-600 border border-stone-300 hover:border-accent-400 rounded-md px-2 py-0.5 leading-none bg-white/70"

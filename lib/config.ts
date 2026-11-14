@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { prisma } from "./prisma";
 import type { Retreat } from "@prisma/client";
+import type { AgendaItem } from "./agenda";
 
 export type RetreatConfig = Retreat;
 
@@ -37,6 +38,27 @@ export function blockedSlotsWithLookback(retreat: RetreatConfig): string[] {
     }
   }
   return Array.from(expanded);
+}
+
+// The open "1:1 Slot #N" agenda windows run MEETING_DURATION_MINUTES on this
+// retreat's finer display grid — the back half of each should never be
+// offered as a fresh request *start* (that would spill into the next named
+// slot), but it still needs to work normally as the second half of a
+// meeting that started at the slot's own first base slot. Deliberately NOT
+// the same thing as retreat.blockedSlots, which makes a slot fully
+// off-limits even as a continuation.
+export function noStartSlotsFromAgenda(agendaItems: AgendaItem[], retreat: RetreatConfig): Set<string> {
+  const noStart = new Set<string>();
+  const stepMs = retreat.granularityMinutes * 60 * 1000;
+  for (const a of agendaItems) {
+    if (!/^1:1 slot/i.test(a.title)) continue;
+    const startMs = new Date(`${a.date}T${a.startTime}:00Z`).getTime();
+    const endMs = new Date(`${a.date}T${a.endTime}:00Z`).getTime();
+    for (let t = startMs + stepMs; t < endMs; t += stepMs) {
+      noStart.add(new Date(t).toISOString());
+    }
+  }
+  return noStart;
 }
 
 export async function getActiveRetreats(): Promise<RetreatConfig[]> {

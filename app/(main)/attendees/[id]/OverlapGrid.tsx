@@ -25,6 +25,7 @@ type Props = {
   betweenUs: BetweenUsRequest[];
   highlightedSlots?: string[];
   blockedSlots?: string[];
+  noStartSlots?: string[];
   meetingSlotCount?: number;
   agendaItems?: AgendaItem[];
   now: string;
@@ -33,6 +34,10 @@ type Props = {
 
 type SlotState =
   | "available"
+  // Both free, but this slot is the back half of a named "1:1 Slot" window —
+  // starting a meeting here would spill into the next slot, so it's shown
+  // (not hidden, not grayed out like "blocked") but isn't a clickable offer.
+  | "availableNoStart"
   | "pendingOutgoing"
   | "pendingIncoming"
   | "confirmed"
@@ -53,6 +58,7 @@ export default function OverlapGrid({
   betweenUs,
   highlightedSlots = [],
   blockedSlots = [],
+  noStartSlots = [],
   meetingSlotCount = 1,
   agendaItems = [],
   now,
@@ -141,6 +147,7 @@ export default function OverlapGrid({
   const myBookedSet = new Set(myBooked.flatMap(getRunIsos));
   const theirBookedSet = new Set(theirBooked.flatMap(getRunIsos));
   const blockedSet = new Set(blockedSlots);
+  const noStartSet = new Set(noStartSlots);
   const nowMs = new Date(now).getTime();
 
   async function request(iso: string, msg: string) {
@@ -243,7 +250,11 @@ export default function OverlapGrid({
           if (!mineSet.has(nextIso) || !theirsSet.has(nextIso)) return "none";
         }
       }
-      return "available";
+      // noStartSet only ever applies to this exact slot as a *start* — a
+      // later slot in the lookahead above being in noStartSet is irrelevant,
+      // since it's only being checked there as the tail of a meeting
+      // starting earlier, not as a start of its own.
+      return noStartSet.has(iso) ? "availableNoStart" : "available";
     }
     return "none";
   }
@@ -326,6 +337,17 @@ export default function OverlapGrid({
             </button>
           </div>
         </div>
+      );
+    }
+
+    if (state === "availableNoStart") {
+      // Both free, but a meeting can't start here — shown so the grid stays
+      // consistent (no gap), just without the label or button that would
+      // make it look like a legitimate booking offer.
+      return wrap(
+        <div className={`${base} border-stone-100 bg-white ${hlCls}`}>
+          <span className="text-xs text-stone-400 w-16 shrink-0 font-medium">{time}</span>
+        </div>,
       );
     }
 

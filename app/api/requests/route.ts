@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { notifyNewRequest } from "@/lib/notifications";
-import { getRetreat, nowInRetreatTz, getDayHoursMap, generateSlots, meetingSlotStarts } from "@/lib/config";
+import { getRetreat, nowInRetreatTz, getDayHoursMap, generateSlots, meetingSlotStarts, noStartSlotsFromAgenda } from "@/lib/config";
 import { lockSlot } from "@/lib/booking";
 
 const schema = z.object({
@@ -33,6 +33,21 @@ export async function POST(req: Request) {
   if (slotStart.getTime() < nowInRetreatTz(retreat).getTime() + BUFFER_MS) {
     return NextResponse.json(
       { error: "Can't book a slot less than 30 minutes from now." },
+      { status: 400 },
+    );
+  }
+
+  // The back half of a named "1:1 Slot" window can't be a fresh request
+  // start (it would spill 15 minutes into the next slot) — but it's fine as
+  // the second half of a meeting starting at the slot's own first base slot,
+  // so this only rejects slotStart itself, not every slot the meeting spans.
+  const agendaItems = await prisma.agendaItem.findMany({
+    where: { retreatId: s.retreatId },
+    select: { date: true, startTime: true, endTime: true, title: true, subtitle: true },
+  });
+  if (noStartSlotsFromAgenda(agendaItems, retreat).has(slotStart.toISOString())) {
+    return NextResponse.json(
+      { error: "A 1:1 can't start partway through that slot." },
       { status: 400 },
     );
   }
