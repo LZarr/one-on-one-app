@@ -4,6 +4,12 @@ import { useRouter } from "next/navigation";
 import { formatSlotTime, formatSlotDay } from "@/lib/format";
 import SlotGrid from "../SlotGrid";
 
+// Every row in this view — a plain base slot or a merged agenda-tinted
+// block — is exactly this tall, so the Now line can be positioned
+// proportionally within whichever row it falls in (see SlotGrid's
+// rowHeightPx prop) instead of snapping to that row's edge.
+const ROW_H = 26;
+
 type SlotMeeting = {
   requestId: string;
   otherPersonName: string;
@@ -333,7 +339,6 @@ export default function CalendarView({
     // instead of a tag confined to a single 15-minute row. A row with no
     // meeting still needs to stay actionable (book it, or unblock it) even
     // while the agenda overlay is on, so those get their own chip too.
-    const ROW_H = 26;
     type MeetingChip = {
       top: number;
       height: number;
@@ -1055,6 +1060,7 @@ export default function CalendarView({
         now={now}
         highlightedSlots={highlightedSlots}
         renderSlot={renderSlot}
+        rowHeightPx={ROW_H}
         tabs
       />
 

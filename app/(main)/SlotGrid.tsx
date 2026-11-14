@@ -11,6 +11,13 @@ type SlotGridProps = {
   emptyDayMessage?: string;
   /** Render a single day at a time, switchable via tab buttons, instead of side-by-side columns / accordion. */
   tabs?: boolean;
+  // When set, every rendered row is assumed to be exactly this tall in px
+  // (true for the schedule page, where even a merged multi-slot agenda
+  // block keeps the same per-base-slot row height) — lets the Now line sit
+  // at its actual proportional position instead of snapping to whichever
+  // row it falls in, which matters once a row can represent several merged
+  // base slots spanning hours rather than just one.
+  rowHeightPx?: number;
 };
 
 function NowBar() {
@@ -30,6 +37,8 @@ function DayColumn({
   renderSlot,
   filterSlot,
   emptyDayMessage,
+  rowHeightPx,
+  gapPx,
 }: {
   day: string;
   slots: string[];
@@ -38,6 +47,8 @@ function DayColumn({
   renderSlot: SlotGridProps["renderSlot"];
   filterSlot?: SlotGridProps["filterSlot"];
   emptyDayMessage?: string;
+  rowHeightPx?: number;
+  gapPx: number;
 }) {
   const safeSlots = slots ?? [];
   const filtered = filterSlot ? safeSlots.filter(filterSlot) : safeSlots;
@@ -46,6 +57,19 @@ function DayColumn({
     return emptyDayMessage
       ? <div className="text-xs text-stone-300 py-2">{emptyDayMessage}</div>
       : null;
+  }
+
+  if (rowHeightPx) {
+    return (
+      <ProportionalDayColumn
+        filtered={filtered}
+        nowMs={nowMs}
+        highlighted={highlighted}
+        renderSlot={renderSlot}
+        rowHeightPx={rowHeightPx}
+        gapPx={gapPx}
+      />
+    );
   }
 
   let nowInserted = false;
@@ -84,6 +108,86 @@ function DayColumn({
   return <>{elements}</>;
 }
 
+// Same row-stacking as the plain DayColumn, but the Now line is a single
+// absolutely-positioned overlay placed at its true fractional position
+// within whichever row it falls in, rather than always snapping to that
+// row's bottom edge — the only way to keep it accurate once a row can be a
+// merged block spanning many base slots (hours, in the agenda overlay).
+function ProportionalDayColumn({
+  filtered,
+  nowMs,
+  highlighted,
+  renderSlot,
+  rowHeightPx,
+  gapPx,
+}: {
+  filtered: string[];
+  nowMs: number;
+  highlighted: Set<string>;
+  renderSlot: SlotGridProps["renderSlot"];
+  rowHeightPx: number;
+  gapPx: number;
+}) {
+  // Per-base-slot duration, inferred from the grid itself so this works at
+  // any retreat's granularity without needing it passed in separately.
+  const stepMs =
+    filtered.length > 1
+      ? new Date(filtered[1]).getTime() - new Date(filtered[0]).getTime()
+      : 15 * 60 * 1000;
+  const pxPerMs = rowHeightPx / stepMs;
+
+  const elements: ReactNode[] = [];
+  const rendered: { ms: number }[] = [];
+  for (const iso of filtered) {
+    const slotMs = new Date(iso).getTime();
+    const node = renderSlot(iso, { isHighlighted: highlighted.has(iso), isPast: slotMs < nowMs });
+    if (node !== null) rendered.push({ ms: slotMs });
+    elements.push(node);
+  }
+
+  const dayStartMs = new Date(filtered[0]).getTime();
+  const dayEndMs = new Date(filtered[filtered.length - 1]).getTime() + stepMs;
+  const isToday = filtered[0].slice(0, 10) === new Date(nowMs).toISOString().slice(0, 10);
+
+  // Before the day's first slot (and only when this tab's day is actually
+  // today — a future day's tab shouldn't show "Now" sitting above it): a
+  // flow element above everything, same as the non-proportional column —
+  // there's no row to be "proportional within" yet.
+  if (rendered.length > 0 && isToday && nowMs < dayStartMs) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: gapPx }}>
+        <NowBar />
+        {elements}
+      </div>
+    );
+  }
+
+  let top: number | null = null;
+  if (rendered.length > 0 && nowMs >= dayStartMs && nowMs < dayEndMs) {
+    let cursor = 0;
+    for (let i = 0; i < rendered.length; i++) {
+      const start = rendered[i].ms;
+      const end = i + 1 < rendered.length ? rendered[i + 1].ms : dayEndMs;
+      if (nowMs >= start && nowMs < end) {
+        top = cursor + (nowMs - start) * pxPerMs;
+        break;
+      }
+      cursor += (end - start) * pxPerMs + gapPx;
+    }
+  }
+
+  return (
+    <div className="relative">
+      <div style={{ display: "flex", flexDirection: "column", gap: gapPx }}>{elements}</div>
+      {top !== null && (
+        <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top }}>
+          <NowBar />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SlotGrid({
   groups,
   now,
@@ -92,6 +196,7 @@ export default function SlotGrid({
   filterSlot,
   emptyDayMessage,
   tabs = false,
+  rowHeightPx,
 }: SlotGridProps) {
   const nowMs = new Date(now).getTime();
   const highlighted = new Set(highlightedSlots);
@@ -103,6 +208,10 @@ export default function SlotGrid({
       return slots.some((iso) => new Date(iso).getTime() >= nowMs);
     }) ?? days[0];
 
+  // Matches whichever space-y-* utility actually wraps the column below, so
+  // the proportional Now line's math agrees with the real rendered gap.
+  const gapPx = tabs ? 2 : 6;
+
   const columnProps = (day: string) => ({
     day,
     slots: groups[day],
@@ -111,6 +220,8 @@ export default function SlotGrid({
     renderSlot,
     filterSlot,
     emptyDayMessage,
+    rowHeightPx,
+    gapPx,
   });
 
   const [selectedDay, setSelectedDay] = useState(firstNonPastDay);
