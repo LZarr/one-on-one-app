@@ -411,7 +411,14 @@ export default function OverlapGrid({
         continuesToNext,
       });
     });
-    const labelNeedsClearance = chips.some((c) => c.top === 0);
+    // Free, bookable slots get the same chip treatment as a meeting would —
+    // just an accent-colored "Request" chip in the same slot, same position,
+    // same size — instead of the old small inline text button, so the two
+    // never look like different widgets depending on what's in this row.
+    const requestRows = runIsos
+      .map((runIso, i) => ({ runIso, i }))
+      .filter(({ runIso }) => !betweenUsMap[runIso] && classify(runIso) === "available");
+    const labelNeedsClearance = chips.some((c) => c.top === 0) || requestRows.some((r) => r.i === 0);
     const blockContinuesFromPrev = chips.some((c) => c.top === 0 && c.continuesFromPrev);
     const blockContinuesToNext = chips.some((c) => c.top + c.height === runIsos.length * ROW_H && c.continuesToNext);
     const blockRoundCls = `${blockContinuesFromPrev ? "rounded-t-none" : "rounded-t-md"} ${
@@ -426,32 +433,31 @@ export default function OverlapGrid({
         style={blockContinuesFromPrev ? { marginTop: "-2px" } : undefined}
         className={`${tint.bg} ${blockRoundCls} ${blockHlCls} overflow-hidden relative`}
       >
-        {runIsos.map((runIso, i) => {
-          const m = betweenUsMap[runIso];
-          const rowState = !m ? classify(runIso) : null;
-          return (
-            <div key={runIso} className="flex items-center gap-1 px-1 text-sm" style={{ height: ROW_H }}>
-              <span className={`text-sm w-16 shrink-0 font-medium ${tint.text}`}>
-                {formatSlotTime(new Date(runIso))}
+        {runIsos.map((runIso, i) => (
+          <div key={runIso} className="flex items-center gap-1 px-1 text-sm" style={{ height: ROW_H }}>
+            <span className={`text-sm w-16 shrink-0 font-medium ${tint.text}`}>
+              {formatSlotTime(new Date(runIso))}
+            </span>
+            {i === 0 && (
+              <span
+                className={`text-sm font-medium min-w-0 flex-1 truncate ${labelNeedsClearance ? "pr-20" : ""} ${tint.text}`}
+              >
+                {agenda.label}
               </span>
-              {i === 0 && (
-                <span
-                  className={`text-sm font-medium min-w-0 flex-1 truncate ${labelNeedsClearance ? "pr-20" : ""} ${tint.text}`}
-                >
-                  {agenda.label}
-                </span>
-              )}
-              {rowState === "available" && (
-                <button
-                  onClick={() => setConfirm(runIso)}
-                  className="text-sm text-stone-900 font-medium hover:text-accent-600 border border-stone-300 hover:border-accent-400 rounded-md px-2 py-0.5 leading-none bg-white/70 shrink-0 ml-auto mr-2"
-                >
-                  Request
-                </button>
-              )}
-            </div>
-          );
-        })}
+            )}
+          </div>
+        ))}
+        {requestRows.map(({ runIso, i }) => (
+          <button
+            key={`req-${runIso}`}
+            onClick={() => setConfirm(runIso)}
+            style={{ position: "absolute", top: i * ROW_H + 3, height: ROW_H - 6, right: 4 }}
+            className="flex items-center justify-center gap-1.5 px-2.5 rounded-md border border-accent-200 bg-accent-50 hover:bg-accent-100 w-[40%]"
+          >
+            <span className="w-2 h-2 rounded-full bg-accent-500 shrink-0" />
+            <span className="text-sm font-medium text-accent-700">Request</span>
+          </button>
+        ))}
         {chips.map((c, i) => {
           // The usual 3px breathing room above/below a chip has to disappear
           // on whichever edge touches the other half of a straddling
@@ -634,6 +640,29 @@ export default function OverlapGrid({
     );
   }
 
+  // Same condensed row-plus-chip shape as standaloneCondensed, but for a free
+  // bookable slot that falls outside any agenda item's range — so the
+  // "Request" chip looks identical whether or not this exact slot happens to
+  // sit inside a tinted agenda block.
+  function standaloneRequestChip(iso: string) {
+    const hlCls = highlightedSlots.includes(iso) ? "ring-2 ring-amber-400/40" : "";
+    return (
+      <div key={iso} className={`rounded-md overflow-hidden relative ${hlCls}`}>
+        <div className="flex items-center gap-1 px-1 text-sm" style={{ height: ROW_H }}>
+          <span className="text-sm text-stone-500 w-16 shrink-0 font-medium">{formatSlotTime(new Date(iso))}</span>
+        </div>
+        <button
+          onClick={() => setConfirm(iso)}
+          style={{ position: "absolute", top: 3, height: ROW_H - 6, right: 4 }}
+          className="flex items-center justify-center gap-1.5 px-2.5 rounded-md border border-accent-200 bg-accent-50 hover:bg-accent-100 w-[40%]"
+        >
+          <span className="w-2 h-2 rounded-full bg-accent-500 shrink-0" />
+          <span className="text-sm font-medium text-accent-700">Request</span>
+        </button>
+      </div>
+    );
+  }
+
   function renderSlot(iso: string, { isHighlighted }: { isHighlighted: boolean; isPast: boolean }) {
     const state = classify(iso);
     if (!state) return null;
@@ -669,6 +698,13 @@ export default function OverlapGrid({
     // agenda item at that exact time.
     if ((state === "confirmed" || state === "pendingOutgoing" || state === "pendingIncoming") && showAgenda) {
       return standaloneCondensed(iso, state);
+    }
+
+    // Same reasoning as above, for a free bookable slot: the overlay must not
+    // make the "Request" action look different depending on whether this
+    // slot happens to fall inside an agenda item's range.
+    if (state === "available" && showAgenda) {
+      return standaloneRequestChip(iso);
     }
 
     const time = formatSlotTime(new Date(iso));
