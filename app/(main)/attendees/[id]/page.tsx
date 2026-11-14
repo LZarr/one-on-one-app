@@ -43,7 +43,7 @@ export default async function AttendeeProfile({
   const slots = generateSlots(retreat, dayHours);
   const groups = groupSlotsByDay(slots);
 
-  const [mine, theirs, myMeetings, theirMeetings, pending] = await Promise.all([
+  const [mine, theirs, myMeetings, theirMeetings, pending, agendaItems] = await Promise.all([
     getMyAvailability(s.userId, s.retreatId),
     getMyAvailability(id, s.retreatId),
     prisma.meetingRequest.findMany({
@@ -72,6 +72,11 @@ export default async function AttendeeProfile({
         ],
       },
       select: { id: true, slotStart: true, fromUserId: true, status: true, message: true },
+    }),
+    prisma.agendaItem.findMany({
+      where: { retreatId: s.retreatId },
+      select: { date: true, startTime: true, endTime: true, title: true, subtitle: true },
+      orderBy: [{ date: "asc" }, { startTime: "asc" }],
     }),
   ]);
 
@@ -174,6 +179,7 @@ export default async function AttendeeProfile({
         highlightedSlots={retreat.highlightedSlots ?? []}
         blockedSlots={blockedSlotsWithLookback(retreat)}
         meetingSlotCount={getMeetingSlotCount(retreat)}
+        agendaItems={agendaItems}
         now={nowInRetreatTz(retreat).toISOString()}
         preselectedSlot={preselectedSlot}
       />

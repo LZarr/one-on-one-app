@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { formatSlotTime, formatSlotTimeRange, formatSlotDay } from "@/lib/format";
 import { MEETING_DURATION_MINUTES } from "@/lib/config";
+import { type AgendaItem, agendaItemLabel } from "@/lib/agenda";
 import SlotGrid from "../../SlotGrid";
 
 type BetweenUsRequest = {
@@ -25,6 +26,7 @@ type Props = {
   highlightedSlots?: string[];
   blockedSlots?: string[];
   meetingSlotCount?: number;
+  agendaItems?: AgendaItem[];
   now: string;
   preselectedSlot?: string;
 };
@@ -52,6 +54,7 @@ export default function OverlapGrid({
   highlightedSlots = [],
   blockedSlots = [],
   meetingSlotCount = 1,
+  agendaItems = [],
   now,
   preselectedSlot,
 }: Props) {
@@ -61,6 +64,40 @@ export default function OverlapGrid({
   const [confirm, setConfirm] = useState<string | null>(preselectedSlot ?? null);
   const [message, setMessage] = useState("");
   const [confirmingCancel, setConfirmingCancel] = useState<string | null>(null);
+  const [showAgenda, setShowAgenda] = useState(false);
+
+  const agendaRanges = useMemo(
+    () =>
+      agendaItems.map((a, i) => ({
+        key: `${a.date}T${a.startTime}-${a.title}-${i}`,
+        startMs: new Date(`${a.date}T${a.startTime}:00Z`).getTime(),
+        endMs: new Date(`${a.date}T${a.endTime}:00Z`).getTime(),
+        label: agendaItemLabel(a.title, a.subtitle),
+      })),
+    [agendaItems],
+  );
+
+  // Per slot, which agenda item (if any) covers it, and whether this slot is
+  // the first in that item's contiguous run — so the label only shows once
+  // per item instead of repeating on every 15-minute row it spans.
+  const agendaRunInfo = useMemo(() => {
+    const info: Record<string, { key: string; label: string; isStart: boolean }> = {};
+    for (const isos of Object.values(groups)) {
+      const matchKeys: (string | null)[] = isos.map((iso) => {
+        const slotMs = new Date(iso).getTime();
+        const matches = agendaRanges.filter((a) => slotMs >= a.startMs && slotMs < a.endMs);
+        if (matches.length === 0) return null;
+        info[iso] = { key: matches.map((m) => m.key).join("+"), label: matches.map((m) => m.label).join(" · "), isStart: false };
+        return info[iso].key;
+      });
+      for (let i = 0; i < isos.length; i++) {
+        const key = matchKeys[i];
+        if (key === null) continue;
+        info[isos[i]].isStart = key !== matchKeys[i - 1];
+      }
+    }
+    return info;
+  }, [groups, agendaRanges]);
 
   // A 1:1 always runs the full meeting duration, which can span more than one
   // base-grid slot (meetingSlotCount > 1). Every slot it occupies needs to
@@ -255,10 +292,25 @@ export default function OverlapGrid({
       ? "ring-2 ring-amber-400/60 border-amber-300 bg-amber-50/40"
       : "";
 
+    // Retreat schedule overlay (off by default): a small caption under the
+    // row naming whatever agenda item covers it, shown once per item rather
+    // than repeating on every 15-minute row it spans.
+    const agenda = showAgenda ? agendaRunInfo[iso] : undefined;
+    const caption = agenda?.isStart ? agenda.label : null;
+    const wrap = (row: ReactNode) => (
+      <div key={iso}>
+        {row}
+        {caption && (
+          <div className="text-[11px] text-stone-400 italic pl-3 pt-0.5 pb-1.5 truncate">
+            {caption}
+          </div>
+        )}
+      </div>
+    );
+
     if (state === "available") {
-      return (
+      return wrap(
         <div
-          key={iso}
           className={`${base} border-accent-200 bg-accent-50 hover:bg-accent-100 cursor-pointer ${hlCls}`}
           onClick={() => setConfirm(iso)}
         >
@@ -279,8 +331,8 @@ export default function OverlapGrid({
 
     if (state === "confirmed") {
       const p = betweenUsMap[iso]!;
-      return (
-        <div key={iso} className={`${base} border-emerald-200 bg-emerald-50 ${hlCls}`}>
+      return wrap(
+        <div className={`${base} border-emerald-200 bg-emerald-50 ${hlCls}`}>
           <span className="text-xs text-emerald-700 w-24 shrink-0 font-semibold">{meetingTimeRange(p)}</span>
           <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
           <span className="text-sm font-medium text-emerald-900 truncate flex-1">
@@ -315,8 +367,8 @@ export default function OverlapGrid({
 
     if (state === "pendingOutgoing") {
       const p = betweenUsMap[iso]!;
-      return (
-        <div key={iso} className={`${base} border-amber-200 bg-amber-50 ${hlCls}`}>
+      return wrap(
+        <div className={`${base} border-amber-200 bg-amber-50 ${hlCls}`}>
           <span className="text-xs text-amber-700 w-24 shrink-0 font-semibold">{meetingTimeRange(p)}</span>
           <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
           <span className="text-sm font-medium text-amber-800 truncate flex-1 text-center">Requested</span>
@@ -350,8 +402,8 @@ export default function OverlapGrid({
 
     if (state === "pendingIncoming") {
       const p = betweenUsMap[iso]!;
-      return (
-        <div key={iso} className={`${base} border-amber-200 bg-amber-50 ${hlCls}`}>
+      return wrap(
+        <div className={`${base} border-amber-200 bg-amber-50 ${hlCls}`}>
           <span className="text-xs text-amber-700 w-24 shrink-0 font-semibold">{meetingTimeRange(p)}</span>
           <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
           <span className="text-sm font-medium text-amber-900 truncate flex-1 text-center">
@@ -397,16 +449,28 @@ export default function OverlapGrid({
           : state === "bothBooked"
             ? "Both unavailable"
             : "Unavailable";
-    return (
-      <div key={iso} className={`${base} border-stone-100 bg-stone-50 opacity-50 ${hlCls}`}>
+    return wrap(
+      <div className={`${base} border-stone-100 bg-stone-50 opacity-50 ${hlCls}`}>
         <span className="text-xs text-stone-400 w-16 shrink-0 font-medium">{time}</span>
         <span className="text-sm text-stone-400 truncate flex-1">{unavailableLabel}</span>
-      </div>
+      </div>,
     );
   }
 
   return (
     <div className="space-y-5">
+      {agendaItems.length > 0 && (
+        <label className="flex items-center gap-2 text-sm font-medium text-stone-600 border border-stone-200 rounded-md px-3 py-2 cursor-pointer hover:bg-stone-50 w-fit">
+          <input
+            type="checkbox"
+            checked={showAgenda}
+            onChange={(e) => setShowAgenda(e.target.checked)}
+            className="rounded border-stone-300"
+          />
+          Show retreat schedule
+        </label>
+      )}
+
       <div className="text-xs text-stone-400 flex flex-wrap gap-4 pb-3 border-b border-stone-200/60">
         <span className="flex items-center gap-2">
           <span className="inline-block w-3 h-3 bg-accent-500 rounded" />
