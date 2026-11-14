@@ -154,6 +154,9 @@ export default function RequestsClient({
                 <div className="text-xs text-stone-400">
                   {fmtTime(r.slotStart)}
                 </div>
+                {r.message && (
+                  <div className="text-xs text-stone-500 italic mt-1 whitespace-pre-wrap">&ldquo;{r.message}&rdquo;</div>
+                )}
               </div>
               <div className="flex gap-2 shrink-0">
                 <a
